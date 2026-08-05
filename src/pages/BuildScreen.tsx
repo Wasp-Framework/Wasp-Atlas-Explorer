@@ -652,46 +652,56 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
           {!isEmbedMode ? (
             <div className="build-viewer__actions">
-              <button
-              className="build-viewer__embed"
-              type="button"
-              onClick={handleCopyEmbed}
-              aria-label="Copy embeddable iframe"
-              title={actionFeedback.embed ? 'Iframe copied' : 'Copy embeddable iframe'}
-            >
-                {actionFeedback.embed ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M5 12.5 9.2 16.7 19 7.3" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
-                  <path d="m9 10-3 2 3 2" />
-                  <path d="m15 10 3 2-3 2" />
-                  </svg>
-                )}
-              </button>
+              <div className="build-viewer__action-wrap">
+                <button
+                  className="build-viewer__embed"
+                  type="button"
+                  onClick={handleCopyEmbed}
+                  aria-label="Copy embeddable iframe"
+                  title={actionFeedback.embed ? 'Iframe copied' : 'Copy embeddable iframe'}
+                >
+                  {actionFeedback.embed ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12.5 9.2 16.7 19 7.3" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+                      <path d="m9 10-3 2 3 2" />
+                      <path d="m15 10 3 2-3 2" />
+                    </svg>
+                  )}
+                </button>
+                <span className="build-viewer__tooltip" role="tooltip">
+                  {actionFeedback.embed ? 'Iframe copied' : 'Copy embeddable iframe'}
+                </span>
+              </div>
 
-              <button
-                className="build-viewer__download"
-                type="button"
-                onClick={handleDownload}
-                aria-label="Download Wasp-compatible aggregation JSON"
-                title={actionFeedback.download ? 'Aggregation downloaded' : 'Download Wasp-compatible aggregation JSON'}
-                disabled={!aggRef.current || isLoading}
-              >
-                {actionFeedback.download ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M5 12.5 9.2 16.7 19 7.3" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M12 4v10" />
-                    <path d="m8 10 4 4 4-4" />
-                    <path d="M5 18h14" />
-                  </svg>
-                )}
-              </button>
+              <div className="build-viewer__action-wrap">
+                <button
+                  className="build-viewer__download"
+                  type="button"
+                  onClick={handleDownload}
+                  aria-label="Download Wasp-compatible aggregation JSON"
+                  title={actionFeedback.download ? 'Aggregation downloaded' : 'Download Wasp-compatible aggregation JSON'}
+                  disabled={!aggRef.current || isLoading}
+                >
+                  {actionFeedback.download ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 12.5 9.2 16.7 19 7.3" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 4v10" />
+                      <path d="m8 10 4 4 4-4" />
+                      <path d="M5 18h14" />
+                    </svg>
+                  )}
+                </button>
+                <span className="build-viewer__tooltip" role="tooltip">
+                  {actionFeedback.download ? 'Downloaded' : 'Download Wasp-compatible aggregation JSON'}
+                </span>
+              </div>
             </div>
           ) : null}
 

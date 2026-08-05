@@ -609,6 +609,10 @@
   gap: var(--space-2);
 }
 
+.build-viewer__action-wrap {
+  position: relative;
+}
+
 .build-viewer__embed,
 .build-viewer__download {
   width: 40px;
@@ -628,6 +632,33 @@
 .build-viewer__download svg {
   width: 1rem;
   height: 1rem;
+}
+
+.build-viewer__tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 0.38rem 0.55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(34, 38, 44, 0.96);
+  color: rgba(244, 247, 251, 0.96);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  transition: opacity var(--ease-fast), transform var(--ease-fast);
+}
+
+.build-viewer__action-wrap:hover .build-viewer__tooltip,
+.build-viewer__action-wrap:focus-within .build-viewer__tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .build-viewer__embed:hover,
