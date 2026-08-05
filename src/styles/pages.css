@@ -600,11 +600,17 @@
   box-shadow: var(--glow-subtle);
 }
 
-.build-viewer__download {
+.build-viewer__actions {
   position: absolute;
   right: var(--space-4);
   bottom: var(--space-4);
   z-index: 3;
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.build-viewer__embed,
+.build-viewer__download {
   width: 40px;
   height: 40px;
   border-radius: var(--radius-sm);
@@ -618,11 +624,13 @@
   transition: border-color var(--ease-fast), color var(--ease-fast), box-shadow var(--ease-glow), opacity var(--ease-fast);
 }
 
+.build-viewer__embed svg,
 .build-viewer__download svg {
   width: 1rem;
   height: 1rem;
 }
 
+.build-viewer__embed:hover,
 .build-viewer__download:hover:not(:disabled) {
   border-color: var(--border-hover);
   color: var(--text);
@@ -713,6 +721,24 @@
   color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.55;
+}
+
+.build-sidebar__embed-credit {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+.build-sidebar__embed-credit a {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: none;
+  transition: color var(--ease-fast);
+}
+
+.build-sidebar__embed-credit a:hover {
+  color: var(--text);
 }
 
 /* ─── Part Catalog ─── */
