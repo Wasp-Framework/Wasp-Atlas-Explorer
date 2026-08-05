@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const PINNED_ATLAS_RAW_BASE =
+  'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas/caa7c7585d03d92902051d8b20f53a2a40af68b7/';
+
 describe('availableSets', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -131,7 +134,7 @@ describe('availableSets', () => {
     for (const set of result.sets) {
       expect(set.slug).toBeTruthy();
       expect(set.name).toBeTruthy();
-      expect(set.path).toContain('https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas/main/systems/');
+      expect(set.path).toContain(`${PINNED_ATLAS_RAW_BASE}systems/`);
       expect(set.aggregation).toBe('aggregation.json');
       expect(Array.isArray(set.colors)).toBe(true);
       expect(typeof set.byPart).toBe('object');

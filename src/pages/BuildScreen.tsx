@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { CUSTOM_UPLOAD_SLUG, loadAvailableSets, type DemoSetConfig } from '../config/availableSets';
 import { useBuildStore } from '../state/buildStore';
@@ -52,6 +52,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const isPortrait = useIsPortrait();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isEmbedMode = searchParams.get('embed') === '1';
   const {
     buildMode,
     selectedPartName,
@@ -102,6 +104,10 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const [sets, setSets] = React.useState<DemoSetConfig[]>([]);
   const [areSetsLoaded, setAreSetsLoaded] = React.useState(false);
   const [catalogNotice, setCatalogNotice] = React.useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = React.useState<{ embed: boolean; download: boolean }>({
+    embed: false,
+    download: false,
+  });
   const currentSet = sets.find((item) => item.slug === slug) ?? null;
 
   /* refs for mutable Three.js objects */
@@ -131,6 +137,27 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!actionFeedback.embed && !actionFeedback.download) return;
+    const timeouts: number[] = [];
+
+    if (actionFeedback.embed) {
+      timeouts.push(window.setTimeout(() => {
+        setActionFeedback((current) => ({ ...current, embed: false }));
+      }, 2000));
+    }
+
+    if (actionFeedback.download) {
+      timeouts.push(window.setTimeout(() => {
+        setActionFeedback((current) => ({ ...current, download: false }));
+      }, 2000));
+    }
+
+    return () => {
+      for (const timeoutId of timeouts) window.clearTimeout(timeoutId);
+    };
+  }, [actionFeedback]);
 
   /* ── Load dataset on mount / slug change ── */
   useEffect(() => {
@@ -212,8 +239,46 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
     try {
       downloadAggregationData(agg, setName || currentSet?.name || slug || 'aggregation');
+      setActionFeedback((current) => ({ ...current, download: true }));
     } catch (err) {
       console.error('Failed to download aggregation data.', err);
+    }
+  }, [currentSet?.name, setName, slug]);
+
+  const handleCopyEmbed = useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const embedUrl = new URL(window.location.href);
+      embedUrl.searchParams.set('embed', '1');
+
+      const iframeTitle = (setName || currentSet?.name || slug || 'Wasp Atlas Configurator').replace(/"/g, '&quot;');
+      const iframeCode =
+        `<iframe src="${embedUrl.toString()}" title="${iframeTitle}" loading="lazy" ` +
+        'width="100%" height="720" style="border:0;"></iframe>';
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(iframeCode);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = iframeCode;
+        textArea.setAttribute('readonly', '');
+        textArea.style.position = 'absolute';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (!copied) {
+          throw new Error('Clipboard copy failed');
+        }
+      }
+
+      setActionFeedback((current) => ({ ...current, embed: true }));
+    } catch (error) {
+      console.error('Failed to copy embed iframe.', error);
     }
   }, [currentSet?.name, setName, slug]);
 
@@ -545,7 +610,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           <p className="build-portrait-overlay__desc">The editor works best in landscape mode.</p>
         </div>
       )}
-      <Navbar onOpenAbout={onOpenAbout} />
+      {!isEmbedMode ? <Navbar onOpenAbout={onOpenAbout} /> : null}
 
       <div className="build-layout">
         {/* ── Main viewer ── */}
@@ -556,43 +621,79 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           onClick={handleCanvasClick}
           onContextMenu={handleCanvasContextMenu}
         >
-          <div className="build-viewer__dataset-name">
-            Dataset: {setName || currentSet?.name || slug}
-          </div>
+          {!isEmbedMode ? (
+            <div className="build-viewer__dataset-name">
+              Dataset: {setName || currentSet?.name || slug}
+            </div>
+          ) : null}
 
-          <button
-            className="build-viewer__back"
-            onClick={() => navigate('/datasets')}
-            title="Back to datasets"
-            aria-label="Back to datasets"
-          >
-            ←
-          </button>
+          {!isEmbedMode ? (
+            <button
+              className="build-viewer__back"
+              onClick={() => navigate('/datasets')}
+              title="Back to datasets"
+              aria-label="Back to datasets"
+            >
+              ←
+            </button>
+          ) : null}
 
-          <button
-            className="build-viewer__info"
-            type="button"
-            onClick={() => setInfoOpen(true)}
-            aria-label="Show dataset info"
-            title="Dataset info"
-          >
-            i
-          </button>
+          {!isEmbedMode ? (
+            <button
+              className="build-viewer__info"
+              type="button"
+              onClick={() => setInfoOpen(true)}
+              aria-label="Show dataset info"
+              title="Dataset info"
+            >
+              i
+            </button>
+          ) : null}
 
-          <button
-            className="build-viewer__download"
-            type="button"
-            onClick={handleDownload}
-            aria-label="Download Wasp-compatible aggregation JSON"
-            title="Download Wasp-compatible aggregation JSON"
-            disabled={!aggRef.current || isLoading}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 4v10" />
-              <path d="m8 10 4 4 4-4" />
-              <path d="M5 18h14" />
-            </svg>
-          </button>
+          {!isEmbedMode ? (
+            <div className="build-viewer__actions">
+              <button
+              className="build-viewer__embed"
+              type="button"
+              onClick={handleCopyEmbed}
+              aria-label="Copy embeddable iframe"
+              title={actionFeedback.embed ? 'Iframe copied' : 'Copy embeddable iframe'}
+            >
+                {actionFeedback.embed ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 12.5 9.2 16.7 19 7.3" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+                  <path d="m9 10-3 2 3 2" />
+                  <path d="m15 10 3 2-3 2" />
+                  </svg>
+                )}
+              </button>
+
+              <button
+                className="build-viewer__download"
+                type="button"
+                onClick={handleDownload}
+                aria-label="Download Wasp-compatible aggregation JSON"
+                title={actionFeedback.download ? 'Aggregation downloaded' : 'Download Wasp-compatible aggregation JSON'}
+                disabled={!aggRef.current || isLoading}
+              >
+                {actionFeedback.download ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M5 12.5 9.2 16.7 19 7.3" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 4v10" />
+                    <path d="m8 10 4 4 4-4" />
+                    <path d="M5 18h14" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          ) : null}
 
         </div>
 
@@ -657,6 +758,14 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
               </>
             )}
           </div>
+
+          {isEmbedMode ? (
+            <div className="build-sidebar__embed-credit">
+              <a href="https://wasp-atlas.net" target="_blank" rel="noreferrer noopener">
+                Powered by Wasp Atlas
+              </a>
+            </div>
+          ) : null}
         </aside>
       </div>
 
