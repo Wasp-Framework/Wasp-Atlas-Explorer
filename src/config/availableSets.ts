@@ -1,6 +1,7 @@
 import { createAggregationFromData } from 'webwaspjs';
 
-const DEFAULT_ATLAS_RAW_BASE = 'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas/main/';
+const DEFAULT_ATLAS_RAW_BASE =
+  'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas/caa7c7585d03d92902051d8b20f53a2a40af68b7/';
 const ATLAS_RAW_BASE = (import.meta.env.VITE_ATLAS_RAW_BASE || DEFAULT_ATLAS_RAW_BASE).replace(/\/?$/, '/');
 const ATLAS_CATALOG_URL = `${ATLAS_RAW_BASE}catalog/catalog.json`;
 
