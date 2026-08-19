@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-The app reads dataset catalog data from the public Wasp Atlas repository and renders interactive assemblies in the browser.
+The app reads dataset catalog data from the public Wasp Atlas collection repository and renders interactive assemblies in the browser.
 
 ## Development
 
@@ -34,7 +34,7 @@ Commands:
 ## Related repositories
 
 - [webwaspjs](https://github.com/winroger/waspjs)
-- [Wasp Atlas collection](https://github.com/Wasp-Framework/Wasp-Atlas)
+- [Wasp Atlas collection](https://github.com/Wasp-Framework/Wasp-Atlas-Collection)
 
 ## Credits
 

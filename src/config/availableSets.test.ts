@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const PINNED_ATLAS_RAW_BASE =
-  'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas/caa7c7585d03d92902051d8b20f53a2a40af68b7/';
+  'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas-Collection/main/';
 
 describe('availableSets', () => {
   beforeEach(() => {
@@ -30,30 +30,37 @@ describe('availableSets', () => {
             systems: [
               {
                 slug: 'z-set',
-                name: 'Zeta Set',
-                description: 'Z desc',
-                author: 'Author Z',
+                title: 'Zeta Set',
+                description: { short: 'Z desc' },
+                authors: [{ name: 'Author Z' }],
                 tags: ['tag-z'],
-                aggregation_url: 'systems/z-set/aggregation.json',
-                meta_url: 'systems/z-set/meta.json',
+                files: {
+                  aggregation: 'z-set/aggregation.json',
+                  meta: 'z-set/meta.json',
+                  thumbnail: 'z-set/thumb.png',
+                },
               },
               {
                 slug: 'a-set',
-                name: 'Alpha Set',
-                description: 'A desc',
-                author: 'Author A',
+                title: 'Alpha Set',
+                description: { short: 'A desc' },
+                authors: [{ name: 'Author A' }],
                 tags: ['tag-a'],
-                aggregation_url: 'systems/a-set/aggregation.json',
-                meta_url: 'systems/a-set/meta.json',
+                files: {
+                  aggregation: 'a-set/aggregation.json',
+                  meta: 'a-set/meta.json',
+                },
               },
               {
                 slug: 'broken-set',
-                name: 'Broken Set',
-                description: 'Broken desc',
-                author: 'Broken Author',
+                title: 'Broken Set',
+                description: { short: 'Broken desc' },
+                authors: [{ name: 'Broken Author' }],
                 tags: ['tag-broken'],
-                aggregation_url: 'systems/broken-set/aggregation.json',
-                meta_url: 'systems/broken-set/meta.json',
+                files: {
+                  aggregation: 'broken-set/aggregation.json',
+                  meta: 'broken-set/meta.json',
+                },
               },
             ],
           }),
@@ -65,10 +72,11 @@ describe('availableSets', () => {
           ok: true,
           json: async () => ({
             units: 'mm',
-            version: '1.0.0',
-            created: '2026-03-02',
+            software: '1.0.0',
+            created_at: '2026-03-02',
             colors: ['#ffffff'],
             byPart: { A: '#ffffff' },
+            license: { value: 'MIT' },
           }),
         };
       }
@@ -78,10 +86,11 @@ describe('availableSets', () => {
           ok: true,
           json: async () => ({
             units: 'cm',
-            version: '2.0.0',
-            created: '2026-03-03',
+            software: '2.0.0',
+            created_at: '2026-03-03',
             palette: ['#000000'],
             by_part: { Z: '#000000' },
+            license: { value: 'GPL-3.0' },
           }),
         };
       }
@@ -140,6 +149,24 @@ describe('availableSets', () => {
       expect(typeof set.byPart).toBe('object');
       expect(Array.isArray(set.tags)).toBe(true);
     }
+
+    expect(result.sets[0]).toMatchObject({
+      name: 'Alpha Set',
+      description: 'A desc',
+      author: 'Author A',
+      version: '1.0.0',
+      created: '2026-03-02',
+      license: 'MIT',
+    });
+    expect(result.sets[1]).toMatchObject({
+      name: 'Zeta Set',
+      description: 'Z desc',
+      author: 'Author Z',
+      version: '2.0.0',
+      created: '2026-03-03',
+      license: 'GPL-3.0',
+      thumbnail: `${PINNED_ATLAS_RAW_BASE}systems/z-set/thumb.png`,
+    });
 
     expect(createAggregationFromData).toHaveBeenCalledTimes(3);
     expect(infoSpy).toHaveBeenCalledTimes(2);

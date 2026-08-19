@@ -1,8 +1,9 @@
 import { createAggregationFromData } from 'webwaspjs';
 
 const DEFAULT_ATLAS_RAW_BASE =
-  'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas/caa7c7585d03d92902051d8b20f53a2a40af68b7/';
+  'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas-Collection/main/';
 const ATLAS_RAW_BASE = (import.meta.env.VITE_ATLAS_RAW_BASE || DEFAULT_ATLAS_RAW_BASE).replace(/\/?$/, '/');
+const ATLAS_SYSTEMS_BASE = `${ATLAS_RAW_BASE}systems/`;
 const ATLAS_CATALOG_URL = `${ATLAS_RAW_BASE}catalog/catalog.json`;
 
 export const CUSTOM_UPLOAD_SLUG = '__custom_upload__';
@@ -34,13 +35,25 @@ type CatalogLoadResult = {
 type AtlasSystem = {
   slug?: string;
   name?: string;
-  description?: string;
+  title?: string;
+  description?: string | { short?: string; long?: string };
   author?: string;
+  authors?: Array<{ name?: string }>;
   tags?: string[];
-  license?: string;
+  license?: string | { value?: string };
   thumbnail?: string;
   aggregation_url?: string;
   meta_url?: string;
+  created?: string;
+  created_at?: string;
+  units?: string;
+  version?: string;
+  software?: string;
+  files?: {
+    aggregation?: string;
+    meta?: string;
+    thumbnail?: string;
+  };
 };
 
 type AtlasCatalog = {
@@ -48,17 +61,45 @@ type AtlasCatalog = {
 };
 
 type AtlasMeta = {
+  title?: string;
+  description?: string | { short?: string; long?: string };
+  authors?: Array<{ name?: string }>;
   tags?: string[];
-  license?: string;
+  license?: string | { value?: string };
   units?: string;
   version?: string;
+  software?: string;
   created?: string;
+  created_at?: string;
   thumbnail?: string;
   colors?: string[];
   palette?: string[];
   byPart?: Record<string, string>;
   by_part?: Record<string, string>;
 };
+
+function normalizeAtlasDescription(value?: AtlasSystem['description'] | AtlasMeta['description']): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  return (value.short || value.long || '').trim();
+}
+
+function normalizeAtlasLicense(value?: AtlasSystem['license'] | AtlasMeta['license']): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  return (value.value || '').trim();
+}
+
+function normalizeAtlasAuthor(system: AtlasSystem, meta: AtlasMeta | null): string {
+  const metaAuthors = Array.isArray(meta?.authors) ? meta.authors : [];
+  const systemAuthors = Array.isArray(system.authors) ? system.authors : [];
+  const authors = (metaAuthors.length ? metaAuthors : systemAuthors)
+    .map((entry) => (entry?.name || '').trim())
+    .filter(Boolean);
+
+  if (authors.length) return authors.join(', ');
+  return (system.author || '').trim();
+}
 
 async function loadAtlasMeta(metaUrl?: string): Promise<AtlasMeta | null> {
   if (!metaUrl) return null;
@@ -72,44 +113,41 @@ async function loadAtlasMeta(metaUrl?: string): Promise<AtlasMeta | null> {
 }
 
 async function toAtlasSet(system: AtlasSystem): Promise<DemoSetConfig | null> {
-  const relAggregation = (system.aggregation_url || '').trim();
+  const relAggregation = (system.files?.aggregation || system.aggregation_url || '').trim();
   if (!relAggregation) return null;
 
   const slash = relAggregation.lastIndexOf('/');
   const aggregation = slash >= 0 ? relAggregation.slice(slash + 1) : relAggregation;
   const basePath = slash >= 0 ? relAggregation.slice(0, slash + 1) : '';
-  const slug = (system.slug || '').trim() || (system.name || '').trim().toLowerCase().replace(/\s+/g, '-');
+  const rawName = (system.title || system.name || '').trim();
+  const slug = (system.slug || '').trim() || rawName.toLowerCase().replace(/\s+/g, '-');
   if (!slug || !aggregation) return null;
 
-  const relMeta = (system.meta_url || '').trim();
-  const metaUrl = relMeta ? `${ATLAS_RAW_BASE}${relMeta}` : undefined;
+  const relMeta = (system.files?.meta || system.meta_url || '').trim();
+  const metaUrl = relMeta ? `${ATLAS_SYSTEMS_BASE}${relMeta}` : undefined;
   const meta = await loadAtlasMeta(metaUrl);
 
-  const tags = Array.isArray(meta?.tags) && meta.tags.length
-    ? meta.tags
-    : Array.isArray(system.tags)
-      ? system.tags
-      : [];
-  const license = (meta?.license || system.license || '').trim();
-  const units = (meta?.units || '').trim();
-  const version = (meta?.version || '').trim();
-  const created = (meta?.created || '').trim();
-  const catalogThumb = (system.thumbnail || '').trim();
+  const tags = Array.isArray(meta?.tags) && meta.tags.length ? meta.tags : Array.isArray(system.tags) ? system.tags : [];
+  const license = normalizeAtlasLicense(meta?.license || system.license);
+  const units = (meta?.units || system.units || '').trim();
+  const version = (meta?.version || meta?.software || system.version || system.software || '').trim();
+  const created = (meta?.created || meta?.created_at || system.created || system.created_at || '').trim();
+  const catalogThumb = (system.files?.thumbnail || system.thumbnail || '').trim();
   const metaThumb = (meta?.thumbnail || '').trim();
   const thumbnail = catalogThumb
-    ? `${ATLAS_RAW_BASE}${catalogThumb}`
+    ? `${ATLAS_SYSTEMS_BASE}${catalogThumb}`
     : metaThumb
-      ? `${ATLAS_RAW_BASE}${basePath}${metaThumb}`
+      ? `${ATLAS_SYSTEMS_BASE}${basePath}${metaThumb}`
       : '';
   const colors = Array.isArray(meta?.colors) ? meta.colors : Array.isArray(meta?.palette) ? meta.palette : [];
   const byPart = meta?.byPart || meta?.by_part || {};
 
   return {
     slug,
-    name: (system.name || '').trim() || slug,
-    description: (system.description || '').trim(),
-    author: (system.author || '').trim(),
-    path: `${ATLAS_RAW_BASE}${basePath}`,
+    name: rawName || (meta?.title || '').trim() || slug,
+    description: normalizeAtlasDescription(meta?.description) || normalizeAtlasDescription(system.description),
+    author: normalizeAtlasAuthor(system, meta),
+    path: `${ATLAS_SYSTEMS_BASE}${basePath}`,
     aggregation,
     colors,
     byPart,
