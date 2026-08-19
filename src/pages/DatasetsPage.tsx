@@ -1,49 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Visualizer } from 'webwaspjs';
 import { CUSTOM_UPLOAD_SLUG, loadAvailableSets, type DemoSetConfig } from '../config/availableSets';
-import { aggregationService, centerCameraOnMesh } from '../lib/aggregationService';
+import { aggregationService } from '../lib/aggregationService';
 import { sanitizeUploadedAggregationData } from '../lib/uploadSanitizer';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { useBuildStore } from '../state/buildStore';
 import type { PartCatalogEntry } from '../state/buildState';
-
-async function loadJson(path: string) {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
-  return response.json();
-}
-
-async function resolveColors(set: DemoSetConfig) {
-  const hasConfigColors =
-    (set.colors && set.colors.length) || Object.keys(set.byPart || {}).length;
-  if (hasConfigColors) return { colors: set.colors || [], byPart: set.byPart || {} };
-
-  if (set.meta) {
-    try {
-      const response = await fetch(set.meta);
-      if (response.ok) {
-        const meta = await response.json();
-        const colors = Array.isArray(meta?.colors) ? meta.colors : Array.isArray(meta?.palette) ? meta.palette : [];
-        const byPart = meta?.byPart || meta?.by_part || {};
-        if (colors.length || Object.keys(byPart).length) {
-          return { colors, byPart };
-        }
-      }
-    } catch {
-      // Fall through to colors.json lookup.
-    }
-  }
-
-  try {
-    const response = await fetch(`${set.path}colors.json`);
-    if (!response.ok) return null;
-    return response.json();
-  } catch {
-    return null;
-  }
-}
 
 function DatasetCard({
   set,
@@ -54,56 +17,6 @@ function DatasetCard({
   onSelect: (slug: string) => void;
   onShowInfo: (set: DemoSetConfig) => void;
 }) {
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const vizRef = useRef<any>(null);
-  const loadedRef = useRef(false);
-
-  useEffect(() => {
-    const container = canvasRef.current;
-    if (!container || loadedRef.current) return;
-    loadedRef.current = true;
-
-    let disposed = false;
-
-    (async () => {
-      try {
-        const data = await loadJson(`${set.path}${set.aggregation}`);
-        const colorsConfig = await resolveColors(set);
-        const agg = aggregationService.createAggregationFromData(data);
-        if (colorsConfig) aggregationService.applyAggregationColors(agg, colorsConfig);
-        const parts = aggregationService.getAggregationCatalogParts(agg);
-        if (disposed || !parts.length) return;
-
-        const viz = new Visualizer(container as any, container as any);
-        vizRef.current = viz;
-        if (viz.cameraControls) viz.cameraControls.enabled = false;
-
-        const mesh = parts[0].geo.clone();
-        mesh.name = `${parts[0].name}_datasets_preview`;
-        if (viz.scene) {
-          viz.scene.add(mesh);
-          centerCameraOnMesh(viz, mesh, 2.5);
-        }
-      } catch (err: any) {
-        console.warn(`Preview failed for ${set.name}: ${err.message}`);
-      }
-    })();
-
-    return () => {
-      disposed = true;
-      const viz = vizRef.current;
-      if (!viz) return;
-      try {
-        viz.cameraControls?.dispose?.();
-        viz.renderer?.dispose?.();
-        const dom = viz.renderer?.domElement;
-        if (dom?.parentNode) dom.parentNode.removeChild(dom);
-      } catch {
-        // ignore cleanup errors
-      }
-    };
-  }, [set]);
-
   return (
     <div className="landing-card">
       <button
@@ -111,7 +24,18 @@ function DatasetCard({
         onClick={() => onSelect(set.slug)}
         type="button"
       >
-        <div className="landing-card__canvas" ref={canvasRef} />
+        {set.thumbnail ? (
+          <img
+            className="landing-card__thumbnail"
+            src={set.thumbnail}
+            alt={`${set.name} preview`}
+            loading="lazy"
+          />
+        ) : (
+          <div className="landing-card__thumbnail-fallback" aria-hidden="true">
+            <span>{set.name}</span>
+          </div>
+        )}
       </button>
 
       <div className="landing-card__footer">
