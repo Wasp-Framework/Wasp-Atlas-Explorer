@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Visualizer } from 'webwaspjs';
 import { loadAvailableSets, type DemoSetConfig } from '../config/availableSets';
 import { aggregationService } from '../lib/aggregationService';
+import { createDefaultPartColorConfig } from '../lib/defaultColors';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 
@@ -82,14 +83,10 @@ export function LandingPage({ onOpenAbout }: { onOpenAbout: () => void }) {
 
         aggregation = aggregationService.createAggregationFromData(data);
         const catalogParts = aggregationService.getAggregationCatalogParts(aggregation);
-        const whiteByPart: Record<string, string> = {};
-        for (const part of catalogParts) {
-          whiteByPart[part.name] = '#ffffff';
-        }
-        aggregationService.applyAggregationColors(aggregation, {
-          colors: ['#ffffff'],
-          byPart: whiteByPart,
-        });
+        aggregationService.applyAggregationColors(
+          aggregation,
+          createDefaultPartColorConfig(catalogParts.map((part) => part.name)),
+        );
 
         viz = new Visualizer(host as any, host as any);
         if (!viz) return;

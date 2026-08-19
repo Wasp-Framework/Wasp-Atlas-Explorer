@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CUSTOM_UPLOAD_SLUG, loadAvailableSets, type DemoSetConfig } from '../config/availableSets';
 import { aggregationService } from '../lib/aggregationService';
+import { createDefaultPartColorConfig } from '../lib/defaultColors';
 import { sanitizeUploadedAggregationData } from '../lib/uploadSanitizer';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
@@ -307,10 +308,11 @@ export function DatasetsPage({ onOpenAbout }: { onOpenAbout: () => void }) {
       setUploadedAggregationData(aggregationData);
       setUploadWarnings(warnings);
       setUploadStartOpen(false);
+      const fallbackColors = createDefaultPartColorConfig(parts.map((part) => part.name));
       setUploadParts(
         parts.map((part) => ({
           name: part.name,
-          color: '#ffffff',
+          color: fallbackColors.byPart[part.name],
           active: true,
         })),
       );

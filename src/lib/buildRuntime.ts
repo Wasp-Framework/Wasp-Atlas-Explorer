@@ -35,6 +35,7 @@ import {
   raycastParts,
   unhighlightGhosts,
 } from './viewerInteraction';
+import { createDefaultPartColorConfig } from './defaultColors';
 
 /* ── helpers ── */
 
@@ -115,12 +116,14 @@ export async function loadDataset(
   set: { path: string; aggregation: string; colors?: string[]; byPart?: Record<string, string> },
 ): Promise<LoadResult> {
   const data = await loadJson(`${set.path}${set.aggregation}`);
-  const colorsConfig = await resolveColors(set);
+  const resolvedColorsConfig = await resolveColors(set);
   const agg = createAggregationFromData(data);
   assertAggregationExportCompatibility(agg, `loadDataset(${set.path}${set.aggregation})`);
+  const parts = getAggregationCatalogParts(agg);
+  const fallbackColorsConfig = createDefaultPartColorConfig(parts.map((part: any) => part.name));
+  const colorsConfig = resolvedColorsConfig || fallbackColorsConfig;
   if (colorsConfig) applyAggregationColors(agg, colorsConfig);
 
-  const parts = getAggregationCatalogParts(agg);
   const palette = colorsConfig?.colors || [];
   const byPart = colorsConfig?.byPart || {};
 
@@ -138,18 +141,21 @@ export async function loadUploadedDataset(
 ): Promise<LoadResult> {
   const agg = createAggregationFromData(payload.aggregationData);
   assertAggregationExportCompatibility(agg, 'loadUploadedDataset');
-  const byPart = payload.byPart || {};
-  const colorValues = Object.values(byPart);
+  const parts = getAggregationCatalogParts(agg);
+  const fallbackColorsConfig = createDefaultPartColorConfig(parts.map((part: any) => part.name));
+  const inputByPart = payload.byPart || {};
+  const byPart = parts.reduce<Record<string, string>>((acc, part: any) => {
+    acc[part.name] = inputByPart[part.name] || fallbackColorsConfig.byPart[part.name];
+    return acc;
+  }, {});
+  const colorValues = Object.values(byPart) as string[];
   const colorsConfig = {
     colors: Array.from(new Set(colorValues)).map((value) => normalizeHex(value)),
     byPart,
   };
 
-  if (Object.keys(byPart).length > 0) {
-    applyAggregationColors(agg, colorsConfig);
-  }
+  applyAggregationColors(agg, colorsConfig);
 
-  const parts = getAggregationCatalogParts(agg);
   const catalog: PartCatalogEntry[] = parts.map((p: any) => ({
     name: p.name,
     color: normalizeHex(byPart[p.name] || '#ffffff'),
