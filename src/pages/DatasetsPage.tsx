@@ -88,10 +88,6 @@ function DatasetInfoModal({
               <dd>{set.author}</dd>
             </div>
           )}
-          <div>
-            <dt>Slug</dt>
-            <dd>{set.slug}</dd>
-          </div>
           {set.tags && set.tags.length > 0 ? (
             <div>
               <dt>Tags</dt>
@@ -126,6 +122,18 @@ function DatasetInfoModal({
             <div>
               <dt>Created</dt>
               <dd>{set.created}</dd>
+            </div>
+          ) : null}
+          {typeof set.partsCount === 'number' ? (
+            <div>
+              <dt>Parts</dt>
+              <dd>{set.partsCount}</dd>
+            </div>
+          ) : null}
+          {typeof set.rulesCount === 'number' ? (
+            <div>
+              <dt>Rules</dt>
+              <dd>{set.rulesCount}</dd>
             </div>
           ) : null}
         </dl>

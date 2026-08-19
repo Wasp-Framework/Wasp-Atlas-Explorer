@@ -24,6 +24,8 @@ export type DemoSetConfig = {
   version?: string;
   created?: string;
   thumbnail?: string;
+  partsCount?: number;
+  rulesCount?: number;
 };
 
 type CatalogLoadResult = {
@@ -49,6 +51,10 @@ type AtlasSystem = {
   units?: string;
   version?: string;
   software?: string;
+  metrics?: {
+    parts_total?: number;
+    rules_total?: number;
+  };
   files?: {
     aggregation?: string;
     meta?: string;
@@ -158,6 +164,8 @@ async function toAtlasSet(system: AtlasSystem): Promise<DemoSetConfig | null> {
     version,
     created,
     thumbnail,
+    partsCount: typeof system.metrics?.parts_total === 'number' ? system.metrics.parts_total : undefined,
+    rulesCount: typeof system.metrics?.rules_total === 'number' ? system.metrics.rules_total : undefined,
   };
 }
 

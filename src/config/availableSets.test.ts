@@ -34,6 +34,7 @@ describe('availableSets', () => {
                 description: { short: 'Z desc' },
                 authors: [{ name: 'Author Z' }],
                 tags: ['tag-z'],
+                metrics: { parts_total: 7, rules_total: 21 },
                 files: {
                   aggregation: 'z-set/aggregation.json',
                   meta: 'z-set/meta.json',
@@ -46,6 +47,7 @@ describe('availableSets', () => {
                 description: { short: 'A desc' },
                 authors: [{ name: 'Author A' }],
                 tags: ['tag-a'],
+                metrics: { parts_total: 3, rules_total: 9 },
                 files: {
                   aggregation: 'a-set/aggregation.json',
                   meta: 'a-set/meta.json',
@@ -157,6 +159,8 @@ describe('availableSets', () => {
       version: '1.0.0',
       created: '2026-03-02',
       license: 'MIT',
+      partsCount: 3,
+      rulesCount: 9,
     });
     expect(result.sets[1]).toMatchObject({
       name: 'Zeta Set',
@@ -166,6 +170,8 @@ describe('availableSets', () => {
       created: '2026-03-03',
       license: 'GPL-3.0',
       thumbnail: `${PINNED_ATLAS_RAW_BASE}systems/z-set/thumb.png`,
+      partsCount: 7,
+      rulesCount: 21,
     });
 
     expect(createAggregationFromData).toHaveBeenCalledTimes(3);
