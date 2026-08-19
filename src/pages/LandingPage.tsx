@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Visualizer } from 'webwaspjs';
 import { loadAvailableSets, type DemoSetConfig } from '../config/availableSets';
 import { aggregationService } from '../lib/aggregationService';
-import { createDefaultPartColorConfig } from '../lib/defaultColors';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 
@@ -11,6 +10,29 @@ async function loadJson(path: string) {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
   return response.json();
+}
+
+const LANDING_GREY_GRADIENT = [
+  '#f7f7f7',
+  '#ebebeb',
+  '#dddddd',
+  '#cfcfcf',
+  '#bdbdbd',
+  '#a9a9a9',
+  '#949494',
+  '#7f7f7f',
+];
+
+function createLandingPartColorConfig(partNames: string[]) {
+  const byPart = partNames.reduce<Record<string, string>>((acc, partName, index) => {
+    acc[partName] = LANDING_GREY_GRADIENT[index % LANDING_GREY_GRADIENT.length];
+    return acc;
+  }, {});
+
+  return {
+    colors: LANDING_GREY_GRADIENT,
+    byPart,
+  };
 }
 
 /* ── Landing page ── */
@@ -85,7 +107,7 @@ export function LandingPage({ onOpenAbout }: { onOpenAbout: () => void }) {
         const catalogParts = aggregationService.getAggregationCatalogParts(aggregation);
         aggregationService.applyAggregationColors(
           aggregation,
-          createDefaultPartColorConfig(catalogParts.map((part) => part.name)),
+          createLandingPartColorConfig(catalogParts.map((part) => part.name)),
         );
 
         viz = new Visualizer(host as any, host as any);
