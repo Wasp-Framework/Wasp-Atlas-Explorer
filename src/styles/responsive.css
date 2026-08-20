@@ -73,6 +73,7 @@
     border-top: 1px solid var(--border);
     padding: var(--space-3);
     gap: var(--space-3);
+    overflow-x: hidden;
   }
 
   .build-sidebar__settings {
@@ -89,13 +90,13 @@
   .part-preview-bar {
     display: flex;
     gap: var(--space-2);
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
     padding-bottom: 2px;
-    margin: 0 calc(var(--space-3) * -1);
-    padding-left: var(--space-3);
-    padding-right: var(--space-3);
     scrollbar-width: none;
   }
 
@@ -105,9 +106,9 @@
 
   .part-preview-bar__item {
     flex: 0 0 auto;
-    width: calc((100vw - (2 * var(--space-3)) - (2.5 * var(--space-2))) / 3.5);
-    min-width: calc((100vw - (2 * var(--space-3)) - (2.5 * var(--space-2))) / 3.5);
-    max-width: calc((100vw - (2 * var(--space-3)) - (2.5 * var(--space-2))) / 3.5);
+    width: calc((100% - (2.5 * var(--space-2))) / 3.5);
+    min-width: calc((100% - (2.5 * var(--space-2))) / 3.5);
+    max-width: calc((100% - (2.5 * var(--space-2))) / 3.5);
     aspect-ratio: 1 / 1;
     display: block;
     border: 1px solid var(--border-soft);
