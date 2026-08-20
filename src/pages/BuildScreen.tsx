@@ -114,6 +114,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const selectedParentRef = useRef<number | null>(null);
   /** The ghost index currently previewed for placement */
   const hoveredGhostRef = useRef<number | null>(null);
+  const lastPointerTypeRef = useRef<string>('mouse');
 
   useEffect(() => {
     let active = true;
@@ -429,6 +430,10 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     [buildMode, previewGhost, selectedPartName],
   );
 
+  const handleCanvasPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    lastPointerTypeRef.current = e.pointerType || 'mouse';
+  }, []);
+
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (buildMode !== 'manual') return;
@@ -447,7 +452,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
       const ghostHit = raycastGhosts(viz, e.nativeEvent);
       if (ghostHit) {
-        if (ghostHit.index !== hoveredGhostRef.current) {
+        const placeImmediately = lastPointerTypeRef.current === 'touch';
+        if (!placeImmediately && ghostHit.index !== hoveredGhostRef.current) {
           previewGhost(ghostHit.index);
           return;
         }
@@ -598,6 +604,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         <div
           className="build-viewer"
           ref={canvasRef}
+          onPointerDown={handleCanvasPointerDown}
           onPointerMove={handleCanvasPointerMove}
           onClick={handleCanvasClick}
           onContextMenu={handleCanvasContextMenu}
