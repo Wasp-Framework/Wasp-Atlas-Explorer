@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDisplayDate } from '../lib/formatDate';
 
 type InfoModalProps = {
   isOpen: boolean;
@@ -94,7 +95,7 @@ export function InfoModal({
           {created ? (
             <div>
               <dt>Created</dt>
-              <dd>{created}</dd>
+              <dd>{formatDisplayDate(created)}</dd>
             </div>
           ) : null}
         </dl>

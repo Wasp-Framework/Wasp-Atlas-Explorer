@@ -140,7 +140,9 @@ export function highlightGhost(visualizer: any, index: number) {
   if (index < 0 || index >= state.ghostMeshes.length) return;
 
   const material = state.ghostMeshes[index].material;
-  material.opacity = 0.7;
+  material.transparent = false;
+  material.opacity = 1;
+  material.depthWrite = true;
   if (material.emissive) {
     material.emissive.setHex(0x444444);
   }
@@ -152,7 +154,9 @@ export function unhighlightGhosts(visualizer: any) {
 
   for (const mesh of state.ghostMeshes) {
     const material = mesh.material;
+    material.transparent = true;
     material.opacity = 0.3;
+    material.depthWrite = false;
     if (material.emissive) {
       material.emissive.setHex(0x000000);
     }

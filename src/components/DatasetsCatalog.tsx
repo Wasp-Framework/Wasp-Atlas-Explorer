@@ -51,7 +51,7 @@ export function DatasetsCatalog({
                 {entry.name}
               </button>
 
-              <label className="part-catalog__color" title="Change color">
+              <label className="part-catalog__color" title={`Change color for ${entry.name}`}>
                 <span
                   className="part-catalog__swatch"
                   style={{ backgroundColor: entry.color }}

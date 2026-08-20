@@ -596,9 +596,21 @@
 
 .build-viewer__info {
   position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.build-viewer__top-actions {
+  position: absolute;
   top: var(--space-4);
   right: var(--space-4);
   z-index: 3;
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.build-viewer__help,
+.build-viewer__info {
   width: 40px;
   height: 40px;
   border-radius: var(--radius-sm);
@@ -614,6 +626,7 @@
   transition: border-color var(--ease-fast), color var(--ease-fast), box-shadow var(--ease-glow);
 }
 
+.build-viewer__help:hover,
 .build-viewer__info:hover {
   border-color: var(--border-hover);
   color: var(--text);
@@ -731,23 +744,90 @@
 }
 
 .build-sidebar__mode-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.build-sidebar__mode-tabs {
   display: inline-flex;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   overflow: hidden;
   background: var(--black-80);
-  flex-shrink: 0;
+  flex-shrink: 1;
 }
 
-.build-sidebar__mode-picker .mode-btn {
+.build-sidebar__mode-tabs .mode-btn {
   flex: 1;
+}
+
+.build-sidebar__mode-settings {
+  display: none;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--black-80);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--ease-fast), box-shadow var(--ease-glow);
+}
+
+.build-sidebar__mode-settings:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--glow-subtle);
+}
+
+.build-sidebar__mode-settings svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .build-sidebar__settings {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.part-preview-bar {
+  display: none;
+}
+
+.controls-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.controls-toolbar__settings {
+  display: none;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-overlay);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--ease-fast), color var(--ease-fast), box-shadow var(--ease-glow);
+}
+
+.controls-toolbar__settings:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--glow-subtle);
+}
+
+.controls-toolbar__settings svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .build-sidebar__usage {
@@ -794,15 +874,13 @@
 
 /* ─── Part Catalog ─── */
 
-.part-catalog__title,
-.random-controls__title,
-.manual-controls__title {
+.part-catalog__title {
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--muted);
   text-transform: uppercase;
   font-size: 0.8rem;
-  margin: 0 0 var(--space-2);
+  margin: 0;
 }
 
 .part-catalog__list {
@@ -834,15 +912,32 @@
   opacity: 0.4;
 }
 
+.part-preview-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.part-preview-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .part-catalog__color {
   position: relative;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
 .part-catalog__swatch {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 100%;
+  height: 100%;
   border-radius: 4px;
   border: 1px solid var(--white-20);
 }
@@ -886,13 +981,71 @@
   background: var(--white-10);
 }
 
+.part-color-settings__title {
+  margin: 0 0 var(--space-3);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.part-color-settings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.part-color-settings__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.part-color-settings__name {
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.part-color-settings__picker {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+
+.part-color-settings__swatch {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--white-20);
+}
+
+.part-color-settings__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
 /* ─── Random Controls ─── */
 
 .random-controls__label {
   display: block;
   font-size: 0.85rem;
   color: var(--text);
-  margin-bottom: var(--space-1);
+  margin: 0;
 }
 
 .random-controls__slider {
@@ -908,10 +1061,20 @@
   margin: 0;
 }
 
+.manual-controls__status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
 .manual-controls__count {
   font-size: 0.85rem;
   color: var(--muted);
-  margin: var(--space-2) 0;
+  margin: 0;
+}
+
+.modal__content--part-settings {
+  width: min(520px, 92vw);
 }
 
 .build-sidebar__usage kbd {
@@ -923,49 +1086,26 @@
   font-size: 0.9em;
 }
 
-/* ─── Portrait mode overlay ─── */
-
-.build-portrait-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: var(--background);
+.build-usage-modal__body {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-5);
-  text-align: center;
-  padding: var(--space-5);
-  pointer-events: none;
+  gap: var(--space-2);
 }
 
-.build-portrait-overlay__icon {
-  width: 64px;
-  height: 64px;
-  color: var(--accent);
-  animation: portrait-hint 2s ease-in-out infinite;
-}
-
-@keyframes portrait-hint {
-  0%, 100% { transform: rotate(0deg); }
-  30% { transform: rotate(90deg); }
-  60% { transform: rotate(90deg); }
-}
-
-.build-portrait-overlay__title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin: 0;
-  color: var(--text);
-}
-
-.build-portrait-overlay__desc {
+.build-usage-modal__body p {
   color: var(--muted);
-  font-size: 0.95rem;
-  max-width: 28ch;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.build-usage-modal__body kbd {
+  background: var(--white-10);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-family: inherit;
+  font-size: 0.9em;
 }
 
 /* ─── Loading / Error overlays ─── */

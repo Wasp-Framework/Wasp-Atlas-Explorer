@@ -41,6 +41,8 @@ export function centerCameraOnMesh(viz: any, mesh: any, distanceScale = 3) {
       center.z,
       false
     );
+  } else {
+    viz.camera.lookAt(center);
   }
 
   viz.camera.near = Math.max(radius * 0.0025, 0.01);

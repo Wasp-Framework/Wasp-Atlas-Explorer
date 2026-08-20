@@ -2,6 +2,10 @@
 }
 
 @media (max-width: 900px) {
+  .build-sidebar__mode-settings {
+    display: grid;
+  }
+
   .landing__main {
     padding: var(--space-3) var(--space-4) var(--space-2);
     gap: var(--space-3);
@@ -42,6 +46,10 @@
     --navbar-height: 70px;
   }
 
+  .build-screen .navbar {
+    display: none;
+  }
+
   .navbar {
     padding-top: var(--space-4);
     padding-bottom: var(--space-4);
@@ -50,6 +58,142 @@
   .brand-mark {
     height: 30px;
   }
+
+  .build-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+  }
+
+  .build-viewer {
+    min-height: 0;
+  }
+
+  .build-sidebar {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .build-sidebar__settings {
+    gap: var(--space-3);
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .build-sidebar .part-catalog {
+    display: none;
+  }
+
+  .part-preview-bar {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    padding-bottom: 2px;
+    margin: 0 calc(var(--space-3) * -1);
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+    scrollbar-width: none;
+  }
+
+  .part-preview-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .part-preview-bar__item {
+    flex: 0 0 auto;
+    width: calc((100vw - (2 * var(--space-3)) - (2.5 * var(--space-2))) / 3.5);
+    min-width: calc((100vw - (2 * var(--space-3)) - (2.5 * var(--space-2))) / 3.5);
+    max-width: calc((100vw - (2 * var(--space-3)) - (2.5 * var(--space-2))) / 3.5);
+    aspect-ratio: 1 / 1;
+    display: block;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-soft);
+    transition: border-color var(--ease-fast), opacity var(--ease-fast), box-shadow var(--ease-glow), filter var(--ease-fast);
+  }
+
+  .part-preview-bar__item--selected {
+    border-color: var(--white-30);
+    box-shadow: var(--glow-selected);
+  }
+
+  .part-preview-bar__item--inactive {
+    opacity: 0.45;
+    filter: grayscale(1) saturate(0.2);
+  }
+
+  .part-preview-bar__button {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    position: relative;
+    touch-action: pan-x;
+  }
+
+  .part-preview-bar__swatch {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(135deg, var(--white-20), var(--black-40));
+  }
+
+  .part-preview-bar__name {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    padding: 10px 8px 8px;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--white-100);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.08));
+    pointer-events: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .build-sidebar__usage {
+    display: none;
+  }
+
+  .build-viewer__dataset-name {
+    display: none;
+  }
+
+  .build-viewer__top-actions {
+    top: var(--space-3);
+    right: var(--space-3);
+  }
+
+  .build-viewer__back,
+  .build-viewer__help,
+  .build-viewer__info {
+    width: 38px;
+    height: 38px;
+  }
+
+  .build-viewer__actions {
+    display: none;
+  }
+
 }
 
 @media (max-width: 600px) {
@@ -101,12 +245,18 @@
   }
 
   .datasets-page__grid {
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    grid-auto-rows: 220px;
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    row-gap: var(--space-3);
   }
 
   .landing-card {
     min-height: 180px;
+  }
+
+  .datasets-page__grid .landing-card {
+    height: auto;
+    min-height: 220px;
   }
 
   .landing-card__preview {
@@ -144,5 +294,13 @@
 
   .site-footer__minimal-links {
     gap: 0.5rem 0.75rem;
+  }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .modal__content {
+    width: min(520px, 88vw);
+    max-height: min(78dvh, calc(100dvh - (2 * var(--space-2))));
+    padding: var(--space-4);
   }
 }

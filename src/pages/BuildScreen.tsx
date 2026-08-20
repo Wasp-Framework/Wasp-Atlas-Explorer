@@ -33,27 +33,18 @@ import {
 import { Navbar } from '../components/Navbar';
 import { InfoModal } from '../components/InfoModal';
 import { DatasetsCatalog } from '../components/DatasetsCatalog';
+import { PartColorSettings } from '../components/PartColorSettings';
+import { PartPreviewBar } from '../components/PartPreviewBar';
 import { RandomControls } from '../components/RandomControls';
 import { ManualControls } from '../components/ManualControls';
 
-function useIsPortrait() {
-  const [isPortrait, setIsPortrait] = React.useState(
-    () => typeof window !== 'undefined' && (window.innerWidth < window.innerHeight || window.innerWidth < 700),
-  );
-  useEffect(() => {
-    const check = () => setIsPortrait(window.innerWidth < window.innerHeight || window.innerWidth < 700);
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-  return isPortrait;
-}
-
 export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
-  const isPortrait = useIsPortrait();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isEmbedMode = searchParams.get('embed') === '1';
+  const [isUsageOpen, setIsUsageOpen] = React.useState(false);
+  const [isPartSettingsOpen, setIsPartSettingsOpen] = React.useState(false);
   const {
     buildMode,
     selectedPartName,
@@ -109,18 +100,19 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     download: false,
   });
   const currentSet = sets.find((item) => item.slug === slug) ?? null;
+  const loadingLabel = currentSet?.name || (slug === CUSTOM_UPLOAD_SLUG ? uploadedDataset?.setName : null) || slug || 'dataset';
 
   /* refs for mutable Three.js objects */
   const canvasRef = useRef<HTMLDivElement>(null);
   const vizRef = useRef<any>(null);
   const aggRef = useRef<any>(null);
   const colorsRef = useRef<any>(null);
-  /** All valid placements at the currently-hovered parent part, grouped by connectionId */
+  /** All valid placements at the currently-selected parent part, grouped by connectionId */
   const placementsByConnRef = useRef<Map<number, any[]>>(new Map());
-  /** Index into the variant list for the currently-hovered ghost's connection */
+  /** Index into the variant list for the currently-selected parent part's connection */
   const activeVariantIndexRef = useRef<Map<number, number>>(new Map());
-  const hoveredParentRef = useRef<number | null>(null);
-  /** The ghost index currently under the pointer */
+  const selectedParentRef = useRef<number | null>(null);
+  /** The ghost index currently previewed for placement */
   const hoveredGhostRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -227,10 +219,95 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       }
       placementsByConnRef.current = new Map();
       activeVariantIndexRef.current = new Map();
-      hoveredParentRef.current = null;
+      selectedParentRef.current = null;
       hoveredGhostRef.current = null;
     },
     [setBuildMode],
+  );
+
+  const previewGhost = useCallback((index: number | null) => {
+    const viz = vizRef.current;
+    hoveredGhostRef.current = index;
+    setHoveredGhost(index);
+
+    if (!viz) return;
+
+    if (index == null) {
+      unhighlightGhosts(viz);
+      return;
+    }
+
+    highlightGhost(viz, index);
+  }, [setHoveredGhost]);
+
+  /** Show ghosts at all open connections of the selected parent part. */
+  const showGhostsForParent = useCallback((partName: string | null) => {
+    const viz = vizRef.current;
+    const agg = aggRef.current;
+    const parentId = selectedParentRef.current;
+
+    if (!viz || !agg || parentId == null || !partName) {
+      if (viz) clearGhostMeshes(viz);
+      placementsByConnRef.current = new Map();
+      activeVariantIndexRef.current = new Map();
+      previewGhost(null);
+      return;
+    }
+
+    const allPlacements: any[] = getValidPlacementsAtParent(agg, partName, parentId);
+
+    // Group by connectionId
+    const byConn = new Map<number, any[]>();
+    for (const p of allPlacements) {
+      const list = byConn.get(p.connectionId) ?? [];
+      list.push(p);
+      byConn.set(p.connectionId, list);
+    }
+    placementsByConnRef.current = byConn;
+
+    // Pick one placement per connection (using current variant index or 0)
+    const ghostPlacements: any[] = [];
+    const newVariantIndex = new Map<number, number>();
+    for (const [connId, variants] of byConn) {
+      const prevIdx = activeVariantIndexRef.current.get(connId) ?? 0;
+      const idx = prevIdx < variants.length ? prevIdx : 0;
+      newVariantIndex.set(connId, idx);
+      ghostPlacements.push(variants[idx]);
+    }
+    activeVariantIndexRef.current = newVariantIndex;
+
+    clearGhostMeshes(viz);
+    if (ghostPlacements.length > 0) {
+      addGhostMeshes(viz, ghostPlacements);
+    }
+    previewGhost(null);
+  }, [previewGhost]);
+
+  /** Helper: clear all visual overlays and refs */
+  const clearOverlays = useCallback(() => {
+    const viz = vizRef.current;
+    if (viz) {
+      clearGhostMeshes(viz);
+    }
+    placementsByConnRef.current = new Map();
+    activeVariantIndexRef.current = new Map();
+    selectedParentRef.current = null;
+    hoveredGhostRef.current = null;
+    setHoveredGhost(null);
+  }, [setHoveredGhost]);
+
+  /* ── Random mode: slider ── */
+  const handleTargetChange = useCallback(
+    (targetCount: number) => {
+      setAggregationTarget(targetCount);
+      const agg = aggRef.current;
+      const viz = vizRef.current;
+      if (agg && viz) {
+        growToTarget(agg, targetCount, viz);
+        updateSceneCameraConstraints(viz);
+      }
+    },
+    [setAggregationTarget],
   );
 
   const handleDownload = useCallback(() => {
@@ -246,9 +323,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   }, [currentSet?.name, setName, slug]);
 
   const handleCopyEmbed = useCallback(async () => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+    if (typeof window === 'undefined') return;
 
     try {
       const embedUrl = new URL(window.location.href);
@@ -281,76 +356,6 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       console.error('Failed to copy embed iframe.', error);
     }
   }, [currentSet?.name, setName, slug]);
-
-  /** Show ghosts at all open connections of the hovered parent part. */
-  const showGhostsForParent = useCallback((partName: string | null) => {
-    const viz = vizRef.current;
-    const agg = aggRef.current;
-    const parentId = hoveredParentRef.current;
-
-    if (!viz || !agg || parentId == null || !partName) {
-      if (viz) clearGhostMeshes(viz);
-      placementsByConnRef.current = new Map();
-      activeVariantIndexRef.current = new Map();
-      setHoveredGhost(null);
-      return;
-    }
-
-    const allPlacements: any[] = getValidPlacementsAtParent(agg, partName, parentId);
-
-    // Group by connectionId
-    const byConn = new Map<number, any[]>();
-    for (const p of allPlacements) {
-      const list = byConn.get(p.connectionId) ?? [];
-      list.push(p);
-      byConn.set(p.connectionId, list);
-    }
-    placementsByConnRef.current = byConn;
-
-    // Pick one placement per connection (using current variant index or 0)
-    const ghostPlacements: any[] = [];
-    const newVariantIndex = new Map<number, number>();
-    for (const [connId, variants] of byConn) {
-      const prevIdx = activeVariantIndexRef.current.get(connId) ?? 0;
-      const idx = prevIdx < variants.length ? prevIdx : 0;
-      newVariantIndex.set(connId, idx);
-      ghostPlacements.push(variants[idx]);
-    }
-    activeVariantIndexRef.current = newVariantIndex;
-
-    clearGhostMeshes(viz);
-    if (ghostPlacements.length > 0) {
-      addGhostMeshes(viz, ghostPlacements);
-    }
-    setHoveredGhost(null);
-  }, [setHoveredGhost]);
-
-  /** Helper: clear all visual overlays and refs */
-  const clearOverlays = useCallback(() => {
-    const viz = vizRef.current;
-    if (viz) {
-      clearGhostMeshes(viz);
-    }
-    placementsByConnRef.current = new Map();
-    activeVariantIndexRef.current = new Map();
-    hoveredParentRef.current = null;
-    hoveredGhostRef.current = null;
-    setHoveredGhost(null);
-  }, [setHoveredGhost]);
-
-  /* ── Random mode: slider ── */
-  const handleTargetChange = useCallback(
-    (targetCount: number) => {
-      setAggregationTarget(targetCount);
-      const agg = aggRef.current;
-      const viz = vizRef.current;
-      if (agg && viz) {
-        growToTarget(agg, targetCount, viz);
-        updateSceneCameraConstraints(viz);
-      }
-    },
-    [setAggregationTarget],
-  );
 
   /* ── Part catalog: toggle active ── */
   const handleToggleActive = useCallback(
@@ -410,45 +415,18 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (buildMode !== 'manual' || !selectedPartName) return;
       const viz = vizRef.current;
-      const agg = aggRef.current;
-      if (!viz || !agg) return;
+      if (!viz || e.pointerType === 'touch' || getGhostCount(viz) === 0) return;
 
-      // Priority 1: check ghost hover (highlight the one under pointer)
-      if (getGhostCount(viz) > 0) {
-        const ghostHit = raycastGhosts(viz, e.nativeEvent);
-        if (ghostHit) {
-          if (ghostHit.index !== hoveredGhostRef.current) {
-            hoveredGhostRef.current = ghostHit.index;
-            highlightGhost(viz, ghostHit.index);
-            setHoveredGhost(ghostHit.index);
-          }
-          return;
-        } else if (hoveredGhostRef.current != null) {
-          hoveredGhostRef.current = null;
-          unhighlightGhosts(viz);
-          setHoveredGhost(null);
+      const ghostHit = raycastGhosts(viz, e.nativeEvent);
+      if (ghostHit) {
+        if (ghostHit.index !== hoveredGhostRef.current) {
+          previewGhost(ghostHit.index);
         }
-      }
-
-      // Priority 2: raycast placed parts → show ghosts at all open connections
-      const partHit = raycastParts(viz, e.nativeEvent);
-      const hitParentId = partHit?.partId ?? null;
-
-      if (hitParentId !== hoveredParentRef.current) {
-        hoveredParentRef.current = hitParentId;
-        hoveredGhostRef.current = null;
-
-        if (hitParentId != null) {
-          showGhostsForParent(selectedPartName);
-        } else {
-          clearGhostMeshes(viz);
-          placementsByConnRef.current = new Map();
-          activeVariantIndexRef.current = new Map();
-          setHoveredGhost(null);
-        }
+      } else if (hoveredGhostRef.current != null) {
+        previewGhost(null);
       }
     },
-    [buildMode, selectedPartName, showGhostsForParent, setHoveredGhost],
+    [buildMode, previewGhost, selectedPartName],
   );
 
   const handleCanvasClick = useCallback(
@@ -458,31 +436,50 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       const viz = vizRef.current;
       if (!agg || !viz) return;
 
-      if (selectedPartName && hoveredGhostIndex != null) {
-        // Get the placement data from the hovered ghost
-        const ghostData = getGhostPlacementData(viz, hoveredGhostIndex);
-        if (ghostData) {
-          placePartManually(
-            agg,
-            ghostData.parentPartId,
-            ghostData.connectionId,
-            ghostData.partName,
-            ghostData.connectionBId,
-            viz,
-          );
-          clearOverlays();
-          setAggregationTarget(agg.aggregated_parts.length);
-          updateSceneCameraConstraints(viz);
-        }
-      } else if (!selectedPartName) {
-        if (agg.aggregated_parts.length === 0 && catalog.length > 0) {
-          placeFirstPartManually(agg, catalog[0].name, viz);
+      if (agg.aggregated_parts.length === 0) {
+        if (selectedPartName) {
+          placeFirstPartManually(agg, selectedPartName, viz);
           setAggregationTarget(agg.aggregated_parts.length);
           frameScene(viz);
         }
+        return;
       }
+
+      const ghostHit = raycastGhosts(viz, e.nativeEvent);
+      if (ghostHit) {
+        if (ghostHit.index !== hoveredGhostRef.current) {
+          previewGhost(ghostHit.index);
+          return;
+        }
+
+        const ghostData = getGhostPlacementData(viz, ghostHit.index);
+        if (!ghostData) return;
+
+        placePartManually(
+          agg,
+          ghostData.parentPartId,
+          ghostData.connectionId,
+          ghostData.partName,
+          ghostData.connectionBId,
+          viz,
+        );
+        clearOverlays();
+        setAggregationTarget(agg.aggregated_parts.length);
+        updateSceneCameraConstraints(viz);
+        return;
+      }
+
+      const partHit = raycastParts(viz, e.nativeEvent);
+      if (partHit?.partId != null) {
+        selectedParentRef.current = partHit.partId;
+        hoveredGhostRef.current = null;
+        showGhostsForParent(selectedPartName);
+        return;
+      }
+
+      previewGhost(null);
     },
-    [buildMode, selectedPartName, hoveredGhostIndex, catalog, clearOverlays, setAggregationTarget],
+    [buildMode, selectedPartName, catalog, clearOverlays, previewGhost, setAggregationTarget, showGhostsForParent],
   );
 
   const handleCanvasContextMenu = useCallback(
@@ -543,9 +540,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
                   (entry) => entry.connectionId === connId && entry.parentPartId === parentPartId,
                 );
                 if (nextHoveredIndex >= 0) {
-                  hoveredGhostRef.current = nextHoveredIndex;
-                  highlightGhost(viz, nextHoveredIndex);
-                  setHoveredGhost(nextHoveredIndex);
+                  previewGhost(nextHoveredIndex);
                 }
               }
             }
@@ -565,9 +560,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         const nextPartName = catalog[nextIndex]?.name ?? null;
 
         selectPart(nextPartName);
-        // Re-show ghosts with new part if hovering a parent
-        if (hoveredParentRef.current != null) {
-          // Need to defer to let state update
+        if (selectedParentRef.current != null) {
           hoveredGhostRef.current = null;
           placementsByConnRef.current = new Map();
           activeVariantIndexRef.current = new Map();
@@ -582,15 +575,15 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     selectedPartName,
     catalog,
     clearOverlays,
+    previewGhost,
     showGhostsForParent,
     selectPart,
-    setHoveredGhost,
     setInfoOpen,
   ]);
 
-  /* Re-show ghosts when selected part changes while hovering a parent */
+  /* Re-show ghosts when selected part changes while a parent is selected */
   useEffect(() => {
-    if (buildMode === 'manual' && hoveredParentRef.current != null && selectedPartName) {
+    if (buildMode === 'manual' && selectedParentRef.current != null && selectedPartName) {
       showGhostsForParent(selectedPartName);
     }
   }, [selectedPartName, buildMode, showGhostsForParent]);
@@ -598,18 +591,6 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   /* ── Render ── */
   return (
     <div className="build-screen">
-      {isPortrait && (
-        <div className="build-portrait-overlay" aria-live="polite">
-          <svg className="build-portrait-overlay__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="5" y="2" width="14" height="20" rx="2"/>
-            <path d="M12 18h.01"/>
-            <path d="M3 11l3-3 3 3" opacity="0.5"/>
-            <path d="M21 13l-3 3-3-3" opacity="0.5"/>
-          </svg>
-          <h2 className="build-portrait-overlay__title">Rotate your device</h2>
-          <p className="build-portrait-overlay__desc">The editor works best in landscape mode.</p>
-        </div>
-      )}
       {!isEmbedMode ? <Navbar onOpenAbout={onOpenAbout} /> : null}
 
       <div className="build-layout">
@@ -639,15 +620,26 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           ) : null}
 
           {!isEmbedMode ? (
-            <button
-              className="build-viewer__info"
-              type="button"
-              onClick={() => setInfoOpen(true)}
-              aria-label="Show dataset info"
-              title="Dataset info"
-            >
-              i
-            </button>
+            <div className="build-viewer__top-actions">
+              <button
+                className="build-viewer__help"
+                type="button"
+                onClick={() => setIsUsageOpen(true)}
+                aria-label="Show usage help"
+                title="Usage help"
+              >
+                ?
+              </button>
+              <button
+                className="build-viewer__info"
+                type="button"
+                onClick={() => setInfoOpen(true)}
+                aria-label="Show dataset info"
+                title="Dataset info"
+              >
+                i
+              </button>
+            </div>
           ) : null}
 
           {!isEmbedMode ? (
@@ -710,32 +702,62 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         {/* ── Right sidebar ── */}
         <aside className="build-sidebar">
           <div className="build-sidebar__mode-picker">
+            <div className="build-sidebar__mode-tabs">
+              <button
+                className={`mode-btn ${buildMode === 'random' ? 'mode-btn--active' : ''}`}
+                onClick={() => handleModeChange('random')}
+              >
+                Random
+              </button>
+              <button
+                className={`mode-btn ${buildMode === 'manual' ? 'mode-btn--active' : ''}`}
+                onClick={() => handleModeChange('manual')}
+              >
+                Manual
+              </button>
+            </div>
             <button
-              className={`mode-btn ${buildMode === 'random' ? 'mode-btn--active' : ''}`}
-              onClick={() => handleModeChange('random')}
+              className="build-sidebar__mode-settings"
+              type="button"
+              onClick={() => setIsPartSettingsOpen(true)}
+              aria-label="Open part color settings"
+              title="Part color settings"
             >
-              Random
-            </button>
-            <button
-              className={`mode-btn ${buildMode === 'manual' ? 'mode-btn--active' : ''}`}
-              onClick={() => handleModeChange('manual')}
-            >
-              Manual
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h7" />
+                <path d="M13 6h7" />
+                <path d="M4 12h3" />
+                <path d="M9 12h11" />
+                <path d="M4 18h11" />
+                <path d="M17 18h3" />
+                <circle cx="12" cy="6" r="1.75" />
+                <circle cx="8" cy="12" r="1.75" />
+                <circle cx="16" cy="18" r="1.75" />
+              </svg>
             </button>
           </div>
 
           <div className="build-sidebar__settings">
-            <h3 className="build-sidebar__section-title">Mode Settings</h3>
+            <PartPreviewBar
+              catalog={catalog}
+              selectedPartName={selectedPartName}
+              buildMode={buildMode}
+              partSources={aggRef.current?.parts}
+              onToggleActive={handleToggleActive}
+              onSelectPart={handleSelectPart}
+            />
 
             {buildMode === 'random' ? (
               <RandomControls
                 targetCount={aggregationTargetCount}
                 onTargetChange={handleTargetChange}
+                onOpenPartSettings={() => setIsPartSettingsOpen(true)}
               />
             ) : (
               <ManualControls
                 selectedPartName={selectedPartName}
                 partCount={aggRef.current?.aggregated_parts?.length ?? 0}
+                onOpenPartSettings={() => setIsPartSettingsOpen(true)}
               />
             )}
 
@@ -753,8 +775,10 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
             <h3 className="build-sidebar__section-title">Usage</h3>
             {buildMode === 'manual' ? (
               <>
-                <p><kbd>Hover</kbd> a part to see placement options</p>
-                <p><kbd>Click</kbd> ghost to place</p>
+                <p>Select a part in settings first</p>
+                <p><kbd>Click</kbd> a placed part to show placements</p>
+                <p><kbd>Hover</kbd> or <kbd>tap</kbd> a ghost to preview</p>
+                <p><kbd>Click</kbd> or <kbd>tap</kbd> the previewed ghost to place</p>
                 <p><kbd>Right-click</kbd> part to remove</p>
                 <p><kbd>Left</kbd>/<kbd>Right</kbd> switch placement variants</p>
                 <p><kbd>Up</kbd>/<kbd>Down</kbd> switch parts</p>
@@ -782,7 +806,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       {/* Loading overlay */}
       {(isLoading || !areSetsLoaded) && (
         <div className="build-loading">
-          <p>Loading {setName || slug}…</p>
+          <p>Loading {loadingLabel}…</p>
         </div>
       )}
 
@@ -823,6 +847,50 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         version={currentSet?.version}
         created={currentSet?.created}
       />
+
+      <div className={`modal${isUsageOpen ? ' is-open' : ''}`} aria-modal="true" role="dialog" aria-labelledby="usageModalTitle">
+        <div className="modal__backdrop" onClick={() => setIsUsageOpen(false)}></div>
+        <div className="modal__content modal__content--usage">
+          <button className="modal__close" aria-label="Close usage help" onClick={() => setIsUsageOpen(false)}>
+            ×
+          </button>
+          <h2 id="usageModalTitle" className="modal__title">Usage</h2>
+          <div className="build-usage-modal__body">
+            {buildMode === 'manual' ? (
+              <>
+                <p>Select a part in settings first.</p>
+                <p><kbd>Click</kbd> a placed part to show placements.</p>
+                <p><kbd>Hover</kbd> or <kbd>tap</kbd> a ghost to preview it.</p>
+                <p><kbd>Click</kbd> or <kbd>tap</kbd> the previewed ghost to place it.</p>
+                <p><kbd>Right-click</kbd> a part to remove it.</p>
+                <p><kbd>Left</kbd>/<kbd>Right</kbd> switches placement variants.</p>
+                <p><kbd>Up</kbd>/<kbd>Down</kbd> switches parts.</p>
+                <p><kbd>Esc</kbd> deselects the current part.</p>
+              </>
+            ) : (
+              <>
+                <p>Use the slider to grow or shrink the aggregation.</p>
+                <p>Toggle parts off to exclude them from random growth.</p>
+                <p>Use the color swatch to update part materials.</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className={`modal${isPartSettingsOpen ? ' is-open' : ''}`} aria-modal="true" role="dialog" aria-labelledby="partSettingsModalTitle">
+        <div className="modal__backdrop" onClick={() => setIsPartSettingsOpen(false)}></div>
+        <div className="modal__content modal__content--part-settings">
+          <button className="modal__close" aria-label="Close part settings" onClick={() => setIsPartSettingsOpen(false)}>
+            ×
+          </button>
+          <h2 id="partSettingsModalTitle" className="modal__title">Part Color Settings</h2>
+          <PartColorSettings
+            catalog={catalog}
+            onColorChange={handleColorChange}
+          />
+        </div>
+      </div>
     </div>
   );
 }

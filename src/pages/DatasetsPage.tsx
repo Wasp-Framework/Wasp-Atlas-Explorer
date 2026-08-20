@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CUSTOM_UPLOAD_SLUG, loadAvailableSets, type DemoSetConfig } from '../config/availableSets';
 import { aggregationService } from '../lib/aggregationService';
 import { createDefaultPartColorConfig } from '../lib/defaultColors';
+import { formatDisplayDate } from '../lib/formatDate';
 import { sanitizeUploadedAggregationData } from '../lib/uploadSanitizer';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
@@ -121,7 +122,7 @@ function DatasetInfoModal({
           {set.created ? (
             <div>
               <dt>Created</dt>
-              <dd>{set.created}</dd>
+              <dd>{formatDisplayDate(set.created)}</dd>
             </div>
           ) : null}
           {typeof set.partsCount === 'number' ? (
