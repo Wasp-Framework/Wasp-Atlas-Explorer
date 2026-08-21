@@ -1,4 +1,4 @@
-import { Box3, Sphere, Vector3 } from 'three';
+import { Box3, MeshStandardMaterial, Sphere, Vector3 } from 'three';
 
 export type AggregationColors = {
   colors?: string[];
@@ -6,17 +6,51 @@ export type AggregationColors = {
   byPart?: Record<string, string>;
 };
 
+function applyColorToMaterial(material: any, color: string) {
+  if (!material) return;
+  if (Array.isArray(material)) {
+    material.forEach((entry) => applyColorToMaterial(entry, color));
+    return;
+  }
+  if (material.color?.set) {
+    material.color.set(color);
+  }
+}
+
+function applyColorToPartGeometry(part: any, color: string) {
+  if (!part?.geo || !color) return;
+
+  if (!part.geo.material) {
+    part.geo.material = new MeshStandardMaterial({ color, roughness: 0.5 });
+    return;
+  }
+
+  applyColorToMaterial(part.geo.material, color);
+}
+
 export function applyAggregationColors(aggregation: any, colorsConfig: AggregationColors | null | undefined) {
   if (!aggregation || !colorsConfig) return;
   const palette = colorsConfig.colors || colorsConfig.palette || [];
   const byPart = colorsConfig.byPart || {};
-  const parts = Object.values(aggregation?.parts || {});
+  const sourceParts = Object.values(aggregation?.parts || {});
+  const partPaletteIndexes = new Map<string, number>();
+  sourceParts.forEach((part: any, index) => {
+    if (part?.name && !partPaletteIndexes.has(part.name)) {
+      partPaletteIndexes.set(part.name, index);
+    }
+  });
+  const parts = [
+    ...sourceParts,
+    ...(Array.isArray(aggregation?.aggregated_parts) ? aggregation.aggregated_parts : []),
+  ];
+  const seenParts = new Set<any>();
 
   parts.forEach((part: any, idx: number) => {
-    const color = byPart[part.name] || palette[idx % palette.length];
-    if (color && part.geo?.material?.color) {
-      part.geo.material.color.set(color);
-    }
+    if (!part || seenParts.has(part)) return;
+    seenParts.add(part);
+    const paletteIndex = partPaletteIndexes.get(part.name) ?? idx;
+    const color = byPart[part.name] || palette[paletteIndex % palette.length];
+    applyColorToPartGeometry(part, color);
   });
 }
 
