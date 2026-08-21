@@ -99,14 +99,19 @@
   }
 
   .part-preview-bar {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: var(--space-2);
     width: 100%;
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    padding-bottom: 2px;
     scrollbar-width: none;
   }
 
@@ -115,9 +120,10 @@
   }
 
   .part-preview-bar__item {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
+    flex: 0 0 clamp(78px, 28vw, 112px);
+    width: clamp(78px, 28vw, 112px);
+    min-width: clamp(78px, 28vw, 112px);
+    max-width: clamp(78px, 28vw, 112px);
     aspect-ratio: 1 / 1;
     display: block;
     border: 1px solid var(--border-soft);
@@ -151,6 +157,7 @@
     cursor: pointer;
     text-align: left;
     position: relative;
+    touch-action: pan-x;
   }
 
   .part-preview-bar__swatch {

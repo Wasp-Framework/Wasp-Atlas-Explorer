@@ -1049,6 +1049,12 @@
 
 /* ─── Random Controls ─── */
 
+.random-controls {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .random-controls__label {
   display: block;
   font-size: 0.85rem;
@@ -1057,6 +1063,9 @@
 }
 
 .random-controls__slider {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   width: 100%;
   accent-color: var(--accent);
 }
