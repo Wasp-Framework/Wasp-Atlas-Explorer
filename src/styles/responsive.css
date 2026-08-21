@@ -62,10 +62,15 @@
   .build-layout {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .build-viewer {
     min-height: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .build-sidebar {
@@ -73,12 +78,18 @@
     border-top: 1px solid var(--border);
     padding: var(--space-3);
     gap: var(--space-3);
+    width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
+    overscroll-behavior-x: contain;
   }
 
   .build-sidebar__settings {
     gap: var(--space-3);
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
     overflow-y: auto;
     padding-right: 2px;
   }
@@ -88,15 +99,14 @@
   }
 
   .part-preview-bar {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
     gap: var(--space-2);
     width: 100%;
+    max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-    padding-bottom: 2px;
+    overflow: hidden;
     scrollbar-width: none;
   }
 
@@ -105,10 +115,9 @@
   }
 
   .part-preview-bar__item {
-    flex: 0 0 auto;
-    width: calc((100% - (2.5 * var(--space-2))) / 3.5);
-    min-width: calc((100% - (2.5 * var(--space-2))) / 3.5);
-    max-width: calc((100% - (2.5 * var(--space-2))) / 3.5);
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     aspect-ratio: 1 / 1;
     display: block;
     border: 1px solid var(--border-soft);
@@ -142,7 +151,6 @@
     cursor: pointer;
     text-align: left;
     position: relative;
-    touch-action: pan-x;
   }
 
   .part-preview-bar__swatch {

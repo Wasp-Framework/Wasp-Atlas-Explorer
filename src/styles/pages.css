@@ -564,11 +564,15 @@
   display: grid;
   grid-template-columns: 1fr 260px;
   min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .build-viewer {
   position: relative;
   min-height: 0;
+  min-width: 0;
   background: var(--background);
 }
 
@@ -740,6 +744,9 @@
   flex-direction: column;
   gap: var(--space-4);
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -793,6 +800,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .part-preview-bar {
