@@ -23,7 +23,7 @@ export function ImpressumPage({ onOpenAbout }: { onOpenAbout: () => void }) {
           <p>
             <strong className="legal-page__name">Andrea Rossi</strong><br />
             Email:{' '}
-            <a href="mailto:a.rossi.andrea@gmail.com">a.rossi.andrea@gmail.com</a><br />
+            <a href="mailto:andrea@thecomputationalhive.com">andrea@thecomputationalhive.com</a><br />
             Web:{' '}
             <a href="https://thecomputationalhive.com/" target="_blank" rel="noreferrer noopener">
               thecomputationalhive.com

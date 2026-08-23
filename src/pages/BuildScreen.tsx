@@ -210,6 +210,41 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     };
   }, [slug, navigate, sets, areSetsLoaded, setLoading, setLoaded, setLoadError, uploadedDataset]);
 
+  useEffect(() => {
+    let animationFrame = 0;
+    let settledTimeout = 0;
+
+    const resizeVisualizer = () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(settledTimeout);
+
+      const applyResize = () => {
+        const viz = vizRef.current;
+        if (!viz) return;
+        viz.onWindowResize?.();
+        updateSceneCameraConstraints(viz);
+        frameScene(viz);
+      };
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = window.requestAnimationFrame(applyResize);
+      });
+      settledTimeout = window.setTimeout(applyResize, 220);
+    };
+
+    window.addEventListener('resize', resizeVisualizer);
+    window.addEventListener('orientationchange', resizeVisualizer);
+    window.visualViewport?.addEventListener('resize', resizeVisualizer);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(settledTimeout);
+      window.removeEventListener('resize', resizeVisualizer);
+      window.removeEventListener('orientationchange', resizeVisualizer);
+      window.visualViewport?.removeEventListener('resize', resizeVisualizer);
+    };
+  }, []);
+
   /* ── Mode switch ── */
   const handleModeChange = useCallback(
     (mode: 'random' | 'manual') => {
@@ -597,6 +632,22 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   /* ── Render ── */
   return (
     <div className="build-screen">
+      <div className="build-orientation-lock" role="status" aria-live="polite">
+        <div className="build-orientation-lock__content">
+          <div className="build-orientation-lock__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="7" y="3" width="10" height="18" rx="2" />
+              <path d="M10 18h4" />
+              <path d="M4 8a8 8 0 0 1 8-6" />
+              <path d="m4 4 0 4 4 0" />
+              <path d="M20 16a8 8 0 0 1-8 6" />
+              <path d="m20 20 0-4-4 0" />
+            </svg>
+          </div>
+          <h2>Rotate your phone</h2>
+          <p>The build mode is available on phones in portrait orientation only.</p>
+        </div>
+      </div>
       {!isEmbedMode ? <Navbar onOpenAbout={onOpenAbout} /> : null}
 
       <div className="build-layout">
