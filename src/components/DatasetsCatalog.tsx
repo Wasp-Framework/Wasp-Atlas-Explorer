@@ -24,10 +24,11 @@ export function DatasetsCatalog({
       <ul className="part-catalog__list">
         {catalog.map((entry) => {
           const isSelected = entry.name === selectedPartName;
+          const isInactiveInRandomMode = buildMode === 'random' && !entry.active;
           return (
             <li
               key={entry.name}
-              className={`part-catalog__item ${isSelected ? 'part-catalog__item--selected' : ''} ${!entry.active ? 'part-catalog__item--inactive' : ''}`}
+              className={`part-catalog__item ${isSelected ? 'part-catalog__item--selected' : ''} ${isInactiveInRandomMode ? 'part-catalog__item--inactive' : ''}`}
             >
               {buildMode === 'random' && (
                 <button
