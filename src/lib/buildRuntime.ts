@@ -168,8 +168,14 @@ export async function loadUploadedDataset(
 /* ── visualizer lifecycle ── */
 
 export function createVisualizerInContainer(container: HTMLElement): any {
-  // Visualizer expects a CSS selector or element – pass the element directly
-  return new Visualizer(container as any, container as any);
+  container.replaceChildren();
+  const rendererHost = document.createElement('div');
+  rendererHost.className = 'build-viewer__renderer-host';
+  container.appendChild(rendererHost);
+
+  // Keep WebWasp's inline renderer sizing on an inner node. The outer container
+  // remains CSS-controlled so orientation changes cannot distort the grid.
+  return new Visualizer(rendererHost as any, container as any);
 }
 
 export function disposeVisualizer(viz: any) {

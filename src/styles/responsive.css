@@ -105,10 +105,17 @@
   }
 
   .build-sidebar__mode-picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px;
     gap: 6px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .build-sidebar__mode-tabs {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     border-radius: var(--radius-sm);
   }
 

@@ -618,6 +618,28 @@
   min-height: 0;
   min-width: 0;
   background: var(--background);
+  overflow: hidden;
+}
+
+.build-viewer__canvas-host {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.build-viewer__renderer-host {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.build-viewer__renderer-host canvas,
+.build-viewer__canvas-host canvas {
+  display: block;
 }
 
 .build-viewer__dataset-name {
@@ -799,12 +821,14 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  max-width: 100%;
 }
 
 .build-sidebar__mode-tabs {
   display: inline-flex;
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   overflow: hidden;

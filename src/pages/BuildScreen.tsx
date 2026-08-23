@@ -654,12 +654,13 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         {/* ── Main viewer ── */}
         <div
           className="build-viewer"
-          ref={canvasRef}
           onPointerDown={handleCanvasPointerDown}
           onPointerMove={handleCanvasPointerMove}
           onClick={handleCanvasClick}
           onContextMenu={handleCanvasContextMenu}
         >
+          <div className="build-viewer__canvas-host" ref={canvasRef} aria-hidden="true" />
+
           {!isEmbedMode ? (
             <div className="build-viewer__dataset-name">
               Dataset: {setName || currentSet?.name || slug}
