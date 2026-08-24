@@ -133,11 +133,13 @@ describe('availableSets', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const mod = await import('./availableSets');
-    const result = await mod.loadAvailableSets();
+    const progressivelyLoaded: string[] = [];
+    const result = await mod.loadAvailableSets((set) => progressivelyLoaded.push(set.slug));
 
     expect(result.fromBackup).toBe(false);
     expect(result.notice).toBeNull();
     expect(result.sets.length).toBe(2);
+    expect(progressivelyLoaded.sort()).toEqual(['a-set', 'z-set']);
 
     const names = result.sets.map((set) => set.name);
     expect(names).toEqual(['Alpha Set', 'Zeta Set']);
@@ -178,5 +180,49 @@ describe('availableSets', () => {
     expect(infoSpy).toHaveBeenCalledTimes(2);
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0]?.[0]).toContain('Dataset failed: broken-set');
+  });
+
+  it('publishes validated datasets before slower validations finish', async () => {
+    vi.doMock('webwaspjs', () => ({ createAggregationFromData: vi.fn(() => ({})) }));
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    let finishSlowDataset!: () => void;
+    const slowDataset = new Promise<void>((resolve) => {
+      finishSlowDataset = resolve;
+    });
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/catalog/catalog.json')) {
+        return {
+          ok: true,
+          json: async () => ({
+            systems: [
+              { slug: 'fast', title: 'Fast', files: { aggregation: 'fast/aggregation.json' } },
+              { slug: 'slow', title: 'Slow', files: { aggregation: 'slow/aggregation.json' } },
+            ],
+          }),
+        };
+      }
+      if (url.endsWith('/systems/slow/aggregation.json')) {
+        return { ok: true, json: async () => { await slowDataset; return {}; } };
+      }
+      return { ok: true, json: async () => ({}) };
+    }));
+
+    const mod = await import('./availableSets');
+    const loaded: string[] = [];
+    let finished = false;
+    const resultPromise = mod.loadAvailableSets((set) => loaded.push(set.slug))
+      .then((result) => {
+        finished = true;
+        return result;
+      });
+
+    await vi.waitFor(() => expect(loaded).toEqual(['fast']));
+    expect(finished).toBe(false);
+
+    finishSlowDataset();
+    const result = await resultPromise;
+    expect(result.sets.map((set) => set.slug)).toEqual(['fast', 'slow']);
   });
 });

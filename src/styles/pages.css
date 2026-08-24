@@ -219,6 +219,10 @@
   font-size: 0.85rem;
 }
 
+.dataset-source-notice--loading {
+  background: var(--surface-hover);
+}
+
 .dataset-source-notice--build {
   position: fixed;
   left: 16px;

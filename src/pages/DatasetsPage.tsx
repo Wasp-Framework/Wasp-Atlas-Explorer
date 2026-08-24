@@ -251,6 +251,7 @@ export function DatasetsPage({ onOpenAbout }: { onOpenAbout: () => void }) {
   const setUploadedDataset = useBuildStore((store) => store.setUploadedDataset);
   const setBuildMode = useBuildStore((store) => store.setBuildMode);
   const [sets, setSets] = useState<DemoSetConfig[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(true);
   const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
   const [infoSet, setInfoSet] = useState<DemoSetConfig | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -263,10 +264,15 @@ export function DatasetsPage({ onOpenAbout }: { onOpenAbout: () => void }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const result = await loadAvailableSets();
+      const result = await loadAvailableSets((loadedSet) => {
+        if (!active) return;
+        setSets((current) => [...current.filter((set) => set.slug !== loadedSet.slug), loadedSet]
+          .sort((a, b) => a.name.localeCompare(b.name)));
+      });
       if (!active) return;
       setSets(result.sets);
       setCatalogNotice(result.notice);
+      setIsCatalogLoading(false);
     })();
 
     return () => {
@@ -371,9 +377,13 @@ export function DatasetsPage({ onOpenAbout }: { onOpenAbout: () => void }) {
               <h1 className="datasets-page__title">Datasets</h1>
             </div>
           </div>
-          {catalogNotice ? (
-            <p className="dataset-source-notice" role="status" aria-live="polite">
-              {catalogNotice}
+          {catalogNotice || isCatalogLoading ? (
+            <p
+              className={`dataset-source-notice${isCatalogLoading ? ' dataset-source-notice--loading' : ''}`}
+              role="status"
+              aria-live="polite"
+            >
+              {catalogNotice || `Loading datasets…${sets.length ? ` ${sets.length} available so far.` : ''}`}
             </p>
           ) : null}
           <div className="landing__grid datasets-page__grid">

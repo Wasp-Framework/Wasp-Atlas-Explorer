@@ -34,6 +34,8 @@ type CatalogLoadResult = {
   notice: string | null;
 };
 
+type DatasetLoadedListener = (set: DemoSetConfig) => void;
+
 type AtlasSystem = {
   slug?: string;
   name?: string;
@@ -197,6 +199,14 @@ async function validateAtlasSet(set: DemoSetConfig): Promise<boolean> {
 }
 
 let catalogLoadPromise: Promise<CatalogLoadResult> | null = null;
+const datasetLoadedListeners = new Set<DatasetLoadedListener>();
+let validatedSets: DemoSetConfig[] = [];
+
+function publishValidatedSet(set: DemoSetConfig) {
+  validatedSets = [...validatedSets.filter((item) => item.slug !== set.slug), set]
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const listener of datasetLoadedListeners) listener(set);
+}
 
 async function fetchRemoteSets(): Promise<DemoSetConfig[]> {
   const response = await fetch(ATLAS_CATALOG_URL, { cache: 'no-store' });
@@ -208,16 +218,24 @@ async function fetchRemoteSets(): Promise<DemoSetConfig[]> {
   const mapped = (await Promise.all(systems.map((system) => toAtlasSet(system)))).filter(
     (item): item is DemoSetConfig => Boolean(item),
   );
-  const validated = await Promise.all(
-    mapped.map(async (set) => ((await validateAtlasSet(set)) ? set : null)),
-  );
+  const validated = await Promise.all(mapped.map(async (set) => {
+    if (!(await validateAtlasSet(set))) return null;
+    publishValidatedSet(set);
+    return set;
+  }));
   return validated
     .filter((item): item is DemoSetConfig => Boolean(item))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function loadAvailableSets(): Promise<CatalogLoadResult> {
+export async function loadAvailableSets(onDatasetLoaded?: DatasetLoadedListener): Promise<CatalogLoadResult> {
+  if (onDatasetLoaded) {
+    for (const set of validatedSets) onDatasetLoaded(set);
+    datasetLoadedListeners.add(onDatasetLoaded);
+  }
+
   if (!catalogLoadPromise) {
+    validatedSets = [];
     catalogLoadPromise = (async () => {
       try {
         const remoteSets = await fetchRemoteSets();
@@ -231,5 +249,10 @@ export async function loadAvailableSets(): Promise<CatalogLoadResult> {
       }
     })();
   }
-  return catalogLoadPromise;
+
+  try {
+    return await catalogLoadPromise;
+  } finally {
+    if (onDatasetLoaded) datasetLoadedListeners.delete(onDatasetLoaded);
+  }
 }
