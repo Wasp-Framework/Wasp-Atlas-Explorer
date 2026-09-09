@@ -184,6 +184,7 @@ export function disposeVisualizer(viz: any) {
     disposeViewerInteraction(viz);
     if (typeof viz.dispose === 'function') {
       viz.dispose();
+      viz.renderer?.forceContextLoss?.();
       const dom = viz.renderer?.domElement;
       if (dom?.parentNode) dom.parentNode.removeChild(dom);
       return;
@@ -195,6 +196,7 @@ export function disposeVisualizer(viz: any) {
       else obj.material?.dispose?.();
     });
     viz.renderer?.dispose?.();
+    viz.renderer?.forceContextLoss?.();
     const dom = viz.renderer?.domElement;
     if (dom?.parentNode) dom.parentNode.removeChild(dom);
   } catch {}

@@ -2,6 +2,7 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { createAggregationFromData } from 'webwaspjs';
 import {
+  disposeVisualizer,
   downloadAggregationData,
   exportAggregationData,
   getAggregationDownloadFileName,
@@ -107,5 +108,19 @@ describe('buildRuntime export helpers', () => {
     expect(addEntity).toHaveBeenCalledTimes(2);
     expect(addEntity).toHaveBeenNthCalledWith(1, aggregation.aggregated_parts[0]);
     expect(addEntity).toHaveBeenNthCalledWith(2, aggregation.aggregated_parts[1]);
+  });
+});
+
+
+describe('visualizer context teardown', () => {
+  it.each([true, false])('releases the owned context after disposal (native dispose: %s)', (native) => {
+    const domElement = document.createElement('canvas');
+    document.body.appendChild(domElement);
+    const renderer = { domElement, dispose: vi.fn(), forceContextLoss: vi.fn() };
+    const viz = { renderer, ...(native ? { dispose: vi.fn() } : {}) };
+    disposeVisualizer(viz);
+    expect(native ? viz.dispose : renderer.dispose).toHaveBeenCalledOnce();
+    expect(renderer.forceContextLoss).toHaveBeenCalledOnce();
+    expect(domElement.isConnected).toBe(false);
   });
 });
