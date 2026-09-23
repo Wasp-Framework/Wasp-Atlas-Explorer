@@ -1,10 +1,35 @@
+import { DEFAULT_NEON_RAINBOW_PALETTE } from './defaultColors';
 import { Box3, MeshStandardMaterial, Sphere, Vector3 } from 'three';
 
 export type AggregationColors = {
+  randomPerInstance?: boolean;
   colors?: string[];
   palette?: string[];
   byPart?: Record<string, string>;
 };
+
+const aggregationColorConfigs = new WeakMap<object, AggregationColors>();
+const instanceColors = new WeakMap<object, string>();
+const isolatedGeometry = new WeakSet<object>();
+
+function getRandomInstanceColor(part: object) {
+  if (!instanceColors.has(part)) {
+    instanceColors.set(part, DEFAULT_NEON_RAINBOW_PALETTE[Math.floor(Math.random() * DEFAULT_NEON_RAINBOW_PALETTE.length)]);
+  }
+  return instanceColors.get(part)!;
+}
+
+export function getPartPreviewColor(aggregation: any, partName: string, previewPart: object) {
+  const config = aggregationColorConfigs.get(aggregation);
+  if (config?.randomPerInstance) return getRandomInstanceColor(previewPart);
+  const material = aggregation?.parts?.[partName]?.geo?.material;
+  const sourceColor = (Array.isArray(material) ? material[0] : material)?.color;
+  return config?.byPart?.[partName] || (sourceColor ? `#${sourceColor.getHexString()}` : undefined);
+}
+
+function refreshAggregationColors(aggregation: any, visualizer?: any) {
+  applyAggregationColors(aggregation, aggregationColorConfigs.get(aggregation), visualizer);
+}
 
 function applyColorToMaterial(material: any, color: string) {
   if (!material) return;
@@ -28,8 +53,9 @@ function applyColorToPartGeometry(part: any, color: string) {
   applyColorToMaterial(part.geo.material, color);
 }
 
-export function applyAggregationColors(aggregation: any, colorsConfig: AggregationColors | null | undefined) {
+export function applyAggregationColors(aggregation: any, colorsConfig: AggregationColors | null | undefined, visualizer?: any) {
   if (!aggregation || !colorsConfig) return;
+  aggregationColorConfigs.set(aggregation, colorsConfig);
   const palette = colorsConfig.colors || colorsConfig.palette || [];
   const byPart = colorsConfig.byPart || {};
   const sourceParts = Object.values(aggregation?.parts || {});
@@ -39,6 +65,7 @@ export function applyAggregationColors(aggregation: any, colorsConfig: Aggregati
       partPaletteIndexes.set(part.name, index);
     }
   });
+  const instances = new Set(aggregation.aggregated_parts || []);
   const parts = [
     ...sourceParts,
     ...(Array.isArray(aggregation?.aggregated_parts) ? aggregation.aggregated_parts : []),
@@ -49,14 +76,27 @@ export function applyAggregationColors(aggregation: any, colorsConfig: Aggregati
     if (!part || seenParts.has(part)) return;
     seenParts.add(part);
     const paletteIndex = partPaletteIndexes.get(part.name) ?? idx;
-    const color = byPart[part.name] || palette[paletteIndex % palette.length];
+    let color = byPart[part.name] || palette[paletteIndex % palette.length];
+    if (colorsConfig.randomPerInstance && instances.has(part)) {
+      color = getRandomInstanceColor(part);
+      // Imported or transformed meshes may share materials with the source.
+      if (part.geo?.material && !isolatedGeometry.has(part.geo)) {
+        part.geo.material = Array.isArray(part.geo.material)
+          ? part.geo.material.map((material: any) => material.clone())
+          : part.geo.material.clone();
+        isolatedGeometry.add(part.geo);
+      }
+    }
     applyColorToPartGeometry(part, color);
+    const renderedMesh = visualizer?.scene?.getObjectByName(`${part.name}_${part.id}`);
+    if (renderedMesh && part.geo?.material) renderedMesh.material = part.geo.material;
   });
 }
 
 export async function setAggregationPartCount(aggregation: any, targetCount: number, visualizer: any) {
   if (!aggregation || !visualizer) return;
   await aggregation.modifyParts(targetCount, visualizer);
+  refreshAggregationColors(aggregation, visualizer);
   updateVisualizerCameraConstraints(visualizer);
 }
 
@@ -131,6 +171,7 @@ export function placeFirstPartManually(aggregation: any, partName: string, visua
   if (!aggregation) return { success: false, error: 'No aggregation' };
   const result = aggregation.placeFirstPart(partName);
   if (result.success && visualizer) {
+    refreshAggregationColors(aggregation, visualizer);
     visualizer.addEntity(result.part);
     updateVisualizerCameraConstraints(visualizer);
   }
@@ -143,11 +184,16 @@ export function placePartManually(
   connectionId: number,
   partName: string,
   connectionBId: number,
-  visualizer?: any
+  visualizer?: any,
+  previewPart?: object,
 ) {
   if (!aggregation) return { success: false, error: 'No aggregation' };
   const result = aggregation.placePartAtConnection(parentPartId, connectionId, partName, connectionBId);
+  if (result.success && previewPart && aggregationColorConfigs.get(aggregation)?.randomPerInstance) {
+    instanceColors.set(result.part, getRandomInstanceColor(previewPart));
+  }
   if (result.success && visualizer) {
+    refreshAggregationColors(aggregation, visualizer);
     visualizer.addEntity(result.part);
     updateVisualizerCameraConstraints(visualizer);
   }

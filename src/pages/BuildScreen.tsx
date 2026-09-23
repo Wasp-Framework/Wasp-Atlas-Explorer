@@ -33,6 +33,7 @@ import {
 import { Navbar } from '../components/Navbar';
 import { InfoModal } from '../components/InfoModal';
 import { DatasetsCatalog } from '../components/DatasetsCatalog';
+import { RandomColorsToggle } from '../components/RandomColorsToggle';
 import { PartColorSettings } from '../components/PartColorSettings';
 import { PartPreviewBar } from '../components/PartPreviewBar';
 import { RandomControls } from '../components/RandomControls';
@@ -44,6 +45,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const [searchParams] = useSearchParams();
   const isEmbedMode = searchParams.get('embed') === '1';
   const [isUsageOpen, setIsUsageOpen] = React.useState(false);
+  const [randomColors, setRandomColors] = React.useState(true);
   const [isPartSettingsOpen, setIsPartSettingsOpen] = React.useState(false);
   const {
     buildMode,
@@ -180,7 +182,9 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         if (cancelled) return;
 
         aggRef.current = aggregation;
-        colorsRef.current = colorsConfig;
+        colorsRef.current = { ...colorsConfig, randomPerInstance: catalog.length === 1 };
+        setRandomColors(true);
+        applyColors(aggregation, colorsRef.current);
 
         /* initialise the visualizer */
         if (vizRef.current) disposeVisualizer(vizRef.current);
@@ -314,7 +318,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
     clearGhostMeshes(viz);
     if (ghostPlacements.length > 0) {
-      addGhostMeshes(viz, ghostPlacements);
+      addGhostMeshes(viz, ghostPlacements, agg);
     }
     previewGhost(null);
   }, [previewGhost]);
@@ -419,6 +423,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     (partName: string, hex: string) => {
       const normalized = normalizeHex(hex);
       setPartColor({ name: partName, color: normalized });
+      setRandomColors(false);
 
       const agg = aggRef.current;
       const viz = vizRef.current;
@@ -426,16 +431,29 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
       // Update colorsConfig and re-apply
       const cfg = colorsRef.current || { colors: [], byPart: {} };
+      cfg.randomPerInstance = false;
       cfg.byPart = cfg.byPart || {};
       cfg.byPart[partName] = normalized;
       colorsRef.current = cfg;
-      applyColors(agg, cfg);
+      applyColors(agg, cfg, viz);
       // Re-render current part count to refresh materials
       growToTarget(agg, aggregationTargetCount, viz);
       updateSceneCameraConstraints(viz);
     },
     [setPartColor, aggregationTargetCount],
   );
+
+  const handleRandomColorsChange = useCallback((enabled: boolean) => {
+    setRandomColors(enabled);
+    const cfg = colorsRef.current;
+    if (!cfg || !aggRef.current) return;
+    cfg.randomPerInstance = enabled;
+    applyColors(aggRef.current, cfg, vizRef.current);
+  }, []);
+
+  const randomColorsToggle = catalog.length === 1 ? (
+    <RandomColorsToggle checked={randomColors} onChange={handleRandomColorsChange} />
+  ) : null;
 
   /* ── Manual mode: select part for placement ── */
   const handleSelectPart = useCallback(
@@ -503,6 +521,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           ghostData.partName,
           ghostData.connectionBId,
           viz,
+          ghostData.transformedPart,
         );
         clearOverlays();
         setAggregationTarget(agg.aggregated_parts.length);
@@ -806,6 +825,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
               onSelectPart={handleSelectPart}
             />
 
+            <div className="random-colors-mobile">{randomColorsToggle}</div>
+
             {buildMode === 'random' ? (
               <RandomControls
                 targetCount={aggregationTargetCount}
@@ -828,6 +849,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
               onColorChange={handleColorChange}
               onSelectPart={handleSelectPart}
             />
+            <div className="random-colors-desktop">{randomColorsToggle}</div>
           </div>
 
           <div className="build-sidebar__usage">
@@ -948,6 +970,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
             catalog={catalog}
             onColorChange={handleColorChange}
           />
+          {randomColorsToggle}
         </div>
       </div>
     </div>

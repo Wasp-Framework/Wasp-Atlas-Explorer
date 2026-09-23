@@ -1,3 +1,4 @@
+import { getPartPreviewColor } from './waspAdapters';
 import { Group, Raycaster, Vector2 } from 'three';
 
 type GhostPlacement = {
@@ -49,22 +50,41 @@ function getPointerState(visualizer: any, event: { clientX: number; clientY: num
   return state;
 }
 
-export function addGhostMeshes(visualizer: any, placements: GhostPlacement[]) {
+export function addGhostMeshes(visualizer: any, placements: GhostPlacement[], aggregation?: any) {
   const state = ensureInteractionState(visualizer);
   if (!state) return;
 
   clearGhostMeshes(visualizer);
   for (const placement of placements) {
     const mesh = placement.transformedPart.geo.clone();
-    mesh.material = mesh.material.clone();
-    mesh.material.transparent = true;
-    mesh.material.opacity = 0.3;
-    mesh.material.depthWrite = false;
+    mesh.geometry = mesh.geometry.clone();
+    mesh.material = Array.isArray(mesh.material)
+      ? mesh.material.map((material: any) => material.clone())
+      : mesh.material.clone();
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      material.transparent = true;
+      material.opacity = 0.3;
+      material.depthWrite = false;
+    }
     mesh.name = `__ghost_${state.ghostMeshes.length}`;
     state.ghostGroup.add(mesh);
     state.ghostMeshes.push(mesh);
     state.ghostData.push(placement);
   }
+  if (aggregation) updateGhostColors(visualizer, aggregation);
+}
+
+export function updateGhostColors(visualizer: any, aggregation: any) {
+  const state = visualizer?.[STATE_KEY] as ViewerInteractionState | undefined;
+  if (!state) return;
+  state.ghostMeshes.forEach((mesh, index) => {
+    const placement = state.ghostData[index];
+    const color = getPartPreviewColor(aggregation, placement.partName, placement.transformedPart);
+    if (!color) return;
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      material.color?.set(color);
+    }
+  });
 }
 
 export function clearGhostMeshes(visualizer: any) {
@@ -139,12 +159,14 @@ export function highlightGhost(visualizer: any, index: number) {
   unhighlightGhosts(visualizer);
   if (index < 0 || index >= state.ghostMeshes.length) return;
 
-  const material = state.ghostMeshes[index].material;
-  material.transparent = false;
-  material.opacity = 1;
-  material.depthWrite = true;
-  if (material.emissive) {
-    material.emissive.setHex(0x444444);
+  const materials = state.ghostMeshes[index].material;
+  for (const material of Array.isArray(materials) ? materials : [materials]) {
+    material.transparent = false;
+    material.opacity = 1;
+    material.depthWrite = true;
+    if (material.emissive) {
+      material.emissive.setHex(0x444444);
+    }
   }
 }
 
@@ -153,12 +175,13 @@ export function unhighlightGhosts(visualizer: any) {
   if (!state) return;
 
   for (const mesh of state.ghostMeshes) {
-    const material = mesh.material;
-    material.transparent = true;
-    material.opacity = 0.3;
-    material.depthWrite = false;
-    if (material.emissive) {
-      material.emissive.setHex(0x000000);
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      material.transparent = true;
+      material.opacity = 0.3;
+      material.depthWrite = false;
+      if (material.emissive) {
+        material.emissive.setHex(0x000000);
+      }
     }
   }
 }

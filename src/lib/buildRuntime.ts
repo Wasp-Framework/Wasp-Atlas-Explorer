@@ -34,6 +34,7 @@ import {
   raycastGhosts,
   raycastParts,
   unhighlightGhosts,
+  updateGhostColors,
 } from './viewerInteraction';
 import { createDefaultPartColorConfig } from './defaultColors';
 
@@ -236,8 +237,11 @@ export function updateSceneCameraConstraints(viz: any) {
   updateVisualizerCameraConstraints(viz);
 }
 
-export function applyColors(agg: any, colorsConfig: any) {
-  if (colorsConfig) applyAggregationColors(agg, colorsConfig);
+export function applyColors(agg: any, colorsConfig: any, viz?: any) {
+  if (colorsConfig) {
+    applyAggregationColors(agg, colorsConfig, viz);
+    updateGhostColors(viz, agg);
+  }
 }
 
 function sanitizeDownloadName(value: string | null | undefined) {

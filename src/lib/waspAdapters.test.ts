@@ -1,5 +1,5 @@
 import { BoxGeometry, Mesh, MeshBasicMaterial, PerspectiveCamera, Scene } from 'three';
-import { applyAggregationColors, frameVisualizerToScene, updateVisualizerCameraConstraints } from './waspAdapters';
+import { setAggregationPartCount, applyAggregationColors, frameVisualizerToScene, updateVisualizerCameraConstraints } from './waspAdapters';
 
 describe('waspAdapters camera helpers', () => {
   it('derives camera constraints from visible scene bounds and ignores ghost overlays', () => {
@@ -35,6 +35,43 @@ describe('waspAdapters camera helpers', () => {
 });
 
 describe('applyAggregationColors', () => {
+  it('keeps random instance colors stable through growth and restores the chosen uniform color', async () => {
+    const sharedMaterial = new MeshBasicMaterial();
+    const source = { name: 'A', geo: new Mesh(new BoxGeometry(), sharedMaterial) };
+    const makePart = () => ({ name: 'A', geo: new Mesh(new BoxGeometry(), sharedMaterial) });
+    const first = { ...makePart(), id: 1 };
+    const second = makePart();
+    const aggregation = {
+      parts: { A: source },
+      aggregated_parts: [first, second],
+      modifyParts: vi.fn(async () => { aggregation.aggregated_parts.push(makePart()); }),
+    };
+    const renderedMesh = first.geo.clone();
+    renderedMesh.name = 'A_1';
+    const scene = new Scene();
+    scene.add(renderedMesh);
+    const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0.5).mockReturnValue(0.75);
+    try {
+      applyAggregationColors(aggregation, { randomPerInstance: true, byPart: { A: '#123456' } }, { scene });
+      const firstColor = first.geo.material.color.getHexString();
+      expect(firstColor).not.toBe(second.geo.material.color.getHexString());
+      expect(first.geo.material).not.toBe(sharedMaterial);
+      expect(renderedMesh.material).toBe(first.geo.material);
+      expect(source.geo.material.color.getHexString()).toBe('123456');
+
+      await setAggregationPartCount(aggregation, 3, {});
+      expect(first.geo.material.color.getHexString()).toBe(firstColor);
+      expect(aggregation.aggregated_parts[2].geo.material.color.getHexString()).not.toBe('123456');
+
+      applyAggregationColors(aggregation, { randomPerInstance: false, byPart: { A: '#abcdef' } });
+      expect(aggregation.aggregated_parts.every((part) => part.geo.material.color.getHexString() === 'abcdef')).toBe(true);
+      await setAggregationPartCount(aggregation, 4, {});
+      expect(aggregation.aggregated_parts[3].geo.material.color.getHexString()).toBe('abcdef');
+    } finally {
+      random.mockRestore();
+    }
+  });
+
   it('applies part colors to catalog parts and restored aggregated parts', () => {
     const sourceMesh = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
     const restoredMesh = new Mesh(new BoxGeometry(1, 1, 1), new MeshBasicMaterial());
