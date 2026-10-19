@@ -707,6 +707,38 @@
   box-shadow: var(--glow-subtle);
 }
 
+.build-viewer__transfer-status {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  width: max-content;
+  max-width: min(320px, 70vw);
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--surface-overlay);
+  color: var(--text);
+  box-shadow: 0 2px 12px #0002;
+  font-size: 13px;
+}
+
+.hivelens-share-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+  color: var(--text);
+}
+.hivelens-share-dialog::backdrop { background: #0008; }
+.hivelens-share-dialog__header, .hivelens-share-dialog__buttons { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.hivelens-share-dialog h2 { margin: 0; }
+.hivelens-share-dialog p { margin: 16px 0; overflow-wrap: anywhere; }
+.hivelens-share-dialog img { display: block; max-width: 100%; height: auto; margin: 16px auto; }
+.hivelens-share-dialog input { width: 100%; box-sizing: border-box; margin-top: 8px; }
+.hivelens-share-dialog button, .hivelens-share-dialog a { padding: 8px 12px; }
+
 .build-viewer__actions {
   position: absolute;
   right: var(--space-4);

@@ -22,9 +22,9 @@ export function PrivacyPage({ onOpenAbout }: { onOpenAbout: () => void }) {
           <h2>Data collection</h2>
           <p>
             This website does <strong>not</strong> use cookies, analytics
-            services, tracking pixels, or any other form of user tracking. No
-            personal data is collected, stored, or processed when you visit this
-            site.
+            services, tracking pixels, or other user tracking. Browsing and
+            editing an assembly does not upload the design. Optional sharing
+            with HiveLens is described below.
           </p>
         </section>
 
@@ -41,6 +41,26 @@ export function PrivacyPage({ onOpenAbout }: { onOpenAbout: () => void }) {
             >
               GitHub Privacy Statement
             </a>.
+          </p>
+        </section>
+
+        <section className="legal-page__section">
+          <h2>Sharing assemblies with HiveLens</h2>
+          <p>
+            Choosing Create link in the Open in HiveLens dialog uploads a
+            snapshot of your assembly, its filename, and model units to Vercel
+            Blob storage through the HiveLens sharing service. Sharing does not
+            require an account. Anyone with the link can download the snapshot
+            until it expires, up to 24 hours after creation. Expired snapshots
+            are scheduled for deletion; imported copies can remain on receiving
+            devices. Avoid including information you do not want link recipients
+            to access. Downloading a JSON file does not create an online share.
+          </p>
+          <p>
+            HiveLens can save imported assemblies in the receiving browser.
+            Users can remove these copies through its Local assemblies library
+            or by clearing browser data. Requests to the sharing service also
+            pass through Vercel hosting and abuse protection.
           </p>
         </section>
 

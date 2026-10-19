@@ -38,6 +38,8 @@ import { PartColorSettings } from '../components/PartColorSettings';
 import { PartPreviewBar } from '../components/PartPreviewBar';
 import { RandomControls } from '../components/RandomControls';
 import { ManualControls } from '../components/ManualControls';
+import { captureHiveLensSnapshot, type HiveLensSnapshot } from '../lib/hiveLensShare';
+import { HiveLensShareDialog } from '../components/HiveLensShareDialog';
 
 export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const { slug } = useParams<{ slug: string }>();
@@ -45,6 +47,12 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const [searchParams] = useSearchParams();
   const isEmbedMode = searchParams.get('embed') === '1';
   const [isUsageOpen, setIsUsageOpen] = React.useState(false);
+  const [hiveLensStatus, setHiveLensStatus] = React.useState('');
+  const [shareSnapshot, setShareSnapshot] = React.useState<HiveLensSnapshot | null>(null);
+  useEffect(() => {
+    setShareSnapshot(null);
+    setHiveLensStatus('');
+  }, [slug]);
   const [randomColors, setRandomColors] = React.useState(true);
   const [isPartSettingsOpen, setIsPartSettingsOpen] = React.useState(false);
   const {
@@ -362,6 +370,16 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     }
   }, [currentSet?.name, setName, slug]);
 
+  const handleOpenInHiveLens = useCallback(() => {
+    if (!aggRef.current) return;
+    setHiveLensStatus('');
+    try {
+      setShareSnapshot(captureHiveLensSnapshot(aggRef.current, setName || currentSet?.name || slug || 'aggregation', currentSet?.units));
+    } catch (error) {
+      setHiveLensStatus(error instanceof Error ? error.message : 'Could not prepare the snapshot.');
+    }
+  }, [currentSet, setName, slug]);
+
   const handleCopyEmbed = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
@@ -668,6 +686,12 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         </div>
       </div>
       {!isEmbedMode ? <Navbar onOpenAbout={onOpenAbout} /> : null}
+      {shareSnapshot ? <HiveLensShareDialog
+        snapshot={shareSnapshot}
+        destination={import.meta.env.VITE_HIVELENS_URL || 'https://hivelens.thecomputationalhive.com'}
+        onClose={() => setShareSnapshot(null)}
+        onDownload={handleDownload}
+      /> : null}
 
       <div className="build-layout">
         {/* ── Main viewer ── */}
@@ -722,6 +746,25 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
           {!isEmbedMode ? (
             <div className="build-viewer__actions">
+              {hiveLensStatus ? <span className="build-viewer__transfer-status" role="status">{hiveLensStatus}</span> : null}
+              <div className="build-viewer__action-wrap">
+                <button
+                  className="build-viewer__download"
+                  type="button"
+                  onClick={handleOpenInHiveLens}
+                  aria-label="Open in HiveLens"
+                  title="Open in HiveLens"
+                  disabled={!aggRef.current || isLoading}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M14 3h7v7M21 3 11 13" />
+                    <path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" />
+                  </svg>
+                </button>
+                <span className="build-viewer__tooltip" role="tooltip">
+                  Open in HiveLens
+                </span>
+              </div>
               <div className="build-viewer__action-wrap">
                 <button
                   className="build-viewer__embed"

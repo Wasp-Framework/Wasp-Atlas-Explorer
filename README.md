@@ -31,6 +31,35 @@ Commands:
 - `npm run typecheck`
 - `npm test`
 
+## Open in HiveLens
+
+The build viewer's **Open in HiveLens** button opens a sharing dialog. Choose
+**Create link** to upload a snapshot, then scan its QR code on a phone or copy
+the link to a headset. It uses the same `aggregation.toData(false)` export as
+Download. Anyone with the link can download the snapshot for 24 hours; imported
+copies can remain on receiving devices. Creating a share requires no account.
+
+The default destination is `https://hivelens.thecomputationalhive.com`.
+Override it with `VITE_HIVELENS_URL` in `.env.local` or the build environment.
+For example, when developing against HiveLens on port 5175:
+
+```text
+VITE_HIVELENS_URL=https://localhost:5175
+```
+
+HiveLens must configure its private Vercel Blob store, sharing secrets and
+Firewall rules, and allow the Atlas origin in its server-side
+`SHARE_ALLOWED_ORIGINS` setting. See the HiveLens repository's `docs/sharing.md`.
+The default remains disabled until backend configuration is complete. Plain
+`vite` does not run Vercel Functions; use a configured HiveLens deployment or
+the integration tests described in that guide. No storage secrets belong here.
+
+Dataset units accompany the export. When metadata is missing or unsupported,
+HiveLens asks the user to choose millimeters, centimeters, or meters before
+staging the assembly. Local assemblies are persisted in HiveLens's browser
+storage. The snapshot limit is 20 MB; Download remains available if sharing
+fails. This replaces the old same-browser messaging transfer.
+
 ## Related repositories
 
 - [webwaspjs](https://github.com/winroger/waspjs)
