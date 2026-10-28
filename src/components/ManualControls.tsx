@@ -2,17 +2,20 @@ import React from 'react';
 
 type Props = {
   selectedPartName: string | null;
+  hasNoValidPlacements?: boolean;
   partCount: number;
   onOpenPartSettings: () => void;
 };
 
-export function ManualControls({ selectedPartName, partCount, onOpenPartSettings }: Props) {
+export function ManualControls({ selectedPartName, hasNoValidPlacements, partCount, onOpenPartSettings }: Props) {
   return (
     <div className="manual-controls">
       <div className="controls-toolbar">
         <div className="manual-controls__status">
           <p className="manual-controls__info">
-            {selectedPartName
+            {hasNoValidPlacements
+              ? 'No valid placements on this part'
+              : selectedPartName
               ? <>Placing: <strong>{selectedPartName}</strong></>
               : 'Select a part in the bar above'}
           </p>

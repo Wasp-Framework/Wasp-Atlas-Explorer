@@ -3,6 +3,7 @@ import type { PartCatalogEntry, BuildMode } from '../state/buildState';
 
 type Props = {
   catalog: PartCatalogEntry[];
+  availablePartNames?: Set<string> | null;
   selectedPartName: string | null;
   buildMode: BuildMode;
   onToggleActive: (name: string) => void;
@@ -12,6 +13,7 @@ type Props = {
 
 export function DatasetsCatalog({
   catalog,
+  availablePartNames,
   selectedPartName,
   buildMode,
   onToggleActive,
@@ -25,10 +27,11 @@ export function DatasetsCatalog({
         {catalog.map((entry) => {
           const isSelected = entry.name === selectedPartName;
           const isInactiveInRandomMode = buildMode === 'random' && !entry.active;
+          const isUnavailable = buildMode === 'manual' && availablePartNames != null && !availablePartNames.has(entry.name);
           return (
             <li
               key={entry.name}
-              className={`part-catalog__item ${isSelected ? 'part-catalog__item--selected' : ''} ${isInactiveInRandomMode ? 'part-catalog__item--inactive' : ''}`}
+              className={`part-catalog__item ${isSelected ? 'part-catalog__item--selected' : ''} ${isInactiveInRandomMode || isUnavailable ? 'part-catalog__item--inactive' : ''}`}
             >
               {buildMode === 'random' && (
                 <button
@@ -42,12 +45,13 @@ export function DatasetsCatalog({
 
               <button
                 className="part-catalog__name"
+                disabled={isUnavailable}
                 onClick={() => {
                   if (buildMode === 'manual') {
                     onSelectPart(isSelected ? null : entry.name);
                   }
                 }}
-                title={buildMode === 'manual' ? 'Select for placement' : entry.name}
+                title={buildMode === 'manual' ? (isUnavailable ? 'No valid placements on this part' : 'Select for placement') : entry.name}
               >
                 {entry.name}
               </button>

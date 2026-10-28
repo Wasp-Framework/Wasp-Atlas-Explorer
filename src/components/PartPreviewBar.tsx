@@ -4,6 +4,7 @@ import { PartPreviewCanvas } from './PartPreviewCanvas';
 
 type Props = {
   catalog: PartCatalogEntry[];
+  availablePartNames?: Set<string> | null;
   selectedPartName: string | null;
   buildMode: BuildMode;
   partSources?: Record<string, any>;
@@ -13,6 +14,7 @@ type Props = {
 
 export function PartPreviewBar({
   catalog,
+  availablePartNames,
   selectedPartName,
   buildMode,
   partSources,
@@ -25,10 +27,11 @@ export function PartPreviewBar({
         const isSelected = entry.name === selectedPartName;
         const isActive = entry.active;
         const source = partSources?.[entry.name]?.geo ?? null;
+        const isUnavailable = buildMode === 'manual' && availablePartNames != null && !availablePartNames.has(entry.name);
         const isDimmed =
           buildMode === 'random'
             ? !isActive
-            : Boolean(selectedPartName) && !isSelected;
+            : availablePartNames != null ? isUnavailable : Boolean(selectedPartName) && !isSelected;
 
         return (
           <div
@@ -42,6 +45,7 @@ export function PartPreviewBar({
             <button
               className="part-preview-bar__button"
               type="button"
+              disabled={isUnavailable}
               onClick={() => {
                 if (buildMode === 'random') {
                   onToggleActive(entry.name);
@@ -49,7 +53,7 @@ export function PartPreviewBar({
                 }
                 onSelectPart(isSelected ? null : entry.name);
               }}
-              title={buildMode === 'random' ? (isActive ? 'Deactivate part' : 'Activate part') : 'Select for placement'}
+              title={buildMode === 'random' ? (isActive ? 'Deactivate part' : 'Activate part') : isUnavailable ? 'No valid placements on this part' : 'Select for placement'}
               aria-pressed={buildMode === 'random' ? isActive : isSelected}
             >
               <span className="part-preview-bar__swatch">
