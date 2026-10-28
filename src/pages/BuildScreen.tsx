@@ -97,6 +97,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const [sets, setSets] = React.useState<DemoSetConfig[]>([]);
   const [areSetsLoaded, setAreSetsLoaded] = React.useState(false);
   const [catalogNotice, setCatalogNotice] = React.useState<string | null>(null);
+  const [availablePartNames, setAvailablePartNames] = React.useState<Set<string> | null>(null);
   const [actionFeedback, setActionFeedback] = React.useState<{ embed: boolean; download: boolean }>({
     embed: false,
     download: false,
@@ -114,6 +115,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   /** Index into the variant list for the currently-selected parent part's connection */
   const activeVariantIndexRef = useRef<Map<number, number>>(new Map());
   const selectedParentRef = useRef<number | null>(null);
+  /** Reuse availability checks when switching candidate parts at the selected parent. */
+  const parentPlacementsRef = useRef<Map<string, any[]> | null>(null);
   /** The ghost index currently previewed for placement */
   const hoveredGhostRef = useRef<number | null>(null);
   const lastPointerTypeRef = useRef<string>('mouse');
@@ -171,6 +174,12 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     }
 
     let cancelled = false;
+    selectedParentRef.current = null;
+    parentPlacementsRef.current = null;
+    setAvailablePartNames(null);
+    placementsByConnRef.current = new Map();
+    activeVariantIndexRef.current = new Map();
+    hoveredGhostRef.current = null;
     setLoading(true);
 
     (async () => {
@@ -260,6 +269,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       placementsByConnRef.current = new Map();
       activeVariantIndexRef.current = new Map();
       selectedParentRef.current = null;
+      parentPlacementsRef.current = null;
+      setAvailablePartNames(null);
       hoveredGhostRef.current = null;
     },
     [setBuildMode],
@@ -294,7 +305,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       return;
     }
 
-    const allPlacements: any[] = getValidPlacementsAtParent(agg, partName, parentId);
+    const allPlacements: any[] = parentPlacementsRef.current?.get(partName)
+      ?? getValidPlacementsAtParent(agg, partName, parentId);
 
     // Group by connectionId
     const byConn = new Map<number, any[]>();
@@ -332,6 +344,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     placementsByConnRef.current = new Map();
     activeVariantIndexRef.current = new Map();
     selectedParentRef.current = null;
+    parentPlacementsRef.current = null;
+    setAvailablePartNames(null);
     hoveredGhostRef.current = null;
     setHoveredGhost(null);
   }, [setHoveredGhost]);
@@ -458,10 +472,16 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   /* ── Manual mode: select part for placement ── */
   const handleSelectPart = useCallback(
     (partName: string | null) => {
+      if (partName && availablePartNames && !availablePartNames.has(partName)) return;
       selectPart(partName);
-      clearOverlays();
+      if (partName == null) {
+        clearOverlays();
+      } else {
+        activeVariantIndexRef.current = new Map();
+        showGhostsForParent(partName);
+      }
     },
-    [clearOverlays, selectPart],
+    [availablePartNames, clearOverlays, selectPart, showGhostsForParent],
   );
 
   /* ── Manual mode: pointer events on canvas ── */
@@ -532,14 +552,28 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       const partHit = raycastParts(viz, e.nativeEvent);
       if (partHit?.partId != null) {
         selectedParentRef.current = partHit.partId;
+        const placements = new Map<string, any[]>();
+        const available = new Set<string>();
+        for (const entry of catalog) {
+          const validPlacements = getValidPlacementsAtParent(agg, entry.name, partHit.partId);
+          placements.set(entry.name, validPlacements);
+          if (validPlacements.length > 0) available.add(entry.name);
+        }
+        parentPlacementsRef.current = placements;
+        setAvailablePartNames(available);
+        const nextPartName = selectedPartName && available.has(selectedPartName)
+          ? selectedPartName
+          : catalog.find((entry) => available.has(entry.name))?.name ?? null;
+        selectPart(nextPartName);
+        activeVariantIndexRef.current = new Map();
         hoveredGhostRef.current = null;
-        showGhostsForParent(selectedPartName);
+        showGhostsForParent(nextPartName);
         return;
       }
 
       previewGhost(null);
     },
-    [buildMode, selectedPartName, catalog, clearOverlays, previewGhost, setAggregationTarget, showGhostsForParent],
+    [buildMode, selectedPartName, catalog, clearOverlays, previewGhost, selectPart, setAggregationTarget, showGhostsForParent],
   );
 
   const handleCanvasContextMenu = useCallback(
@@ -611,14 +645,19 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault();
+        const selectableParts = availablePartNames
+          ? catalog.filter((entry) => availablePartNames.has(entry.name))
+          : catalog;
+        if (selectableParts.length === 0) return;
         const step = e.key === 'ArrowDown' ? 1 : -1;
-        const currentIndex = catalog.findIndex((entry) => entry.name === selectedPartName);
-        const fallbackIndex = step > 0 ? 0 : catalog.length - 1;
+        const currentIndex = selectableParts.findIndex((entry) => entry.name === selectedPartName);
+        const fallbackIndex = step > 0 ? 0 : selectableParts.length - 1;
         const nextIndex = currentIndex === -1
           ? fallbackIndex
-          : (currentIndex + step + catalog.length) % catalog.length;
-        const nextPartName = catalog[nextIndex]?.name ?? null;
+          : (currentIndex + step + selectableParts.length) % selectableParts.length;
+        const nextPartName = selectableParts[nextIndex]?.name ?? null;
 
+        if (nextPartName === selectedPartName) return;
         selectPart(nextPartName);
         if (selectedParentRef.current != null) {
           hoveredGhostRef.current = null;
@@ -634,6 +673,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     buildMode,
     selectedPartName,
     catalog,
+    availablePartNames,
     clearOverlays,
     previewGhost,
     showGhostsForParent,
@@ -818,6 +858,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           <div className="build-sidebar__settings">
             <PartPreviewBar
               catalog={catalog}
+              availablePartNames={availablePartNames}
               selectedPartName={selectedPartName}
               buildMode={buildMode}
               partSources={aggRef.current?.parts}
@@ -836,6 +877,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
             ) : (
               <ManualControls
                 selectedPartName={selectedPartName}
+                hasNoValidPlacements={availablePartNames?.size === 0}
                 partCount={aggRef.current?.aggregated_parts?.length ?? 0}
                 onOpenPartSettings={() => setIsPartSettingsOpen(true)}
               />
@@ -843,6 +885,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
             <DatasetsCatalog
               catalog={catalog}
+              availablePartNames={availablePartNames}
               selectedPartName={selectedPartName}
               buildMode={buildMode}
               onToggleActive={handleToggleActive}
