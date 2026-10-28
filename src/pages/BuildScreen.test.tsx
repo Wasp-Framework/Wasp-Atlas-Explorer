@@ -15,7 +15,8 @@ vi.mock('../config/availableSets', async (importOriginal) => ({
 
 const catalog = ['A', 'B', 'C', 'D'].map((name) => ({ name, color: '#123456', active: true }));
 let viewer: HTMLElement;
-let parentId: number;
+let parentId: number | string;
+let getValidPlacementsAtParent: ReturnType<typeof vi.fn>;
 
 beforeEach(async () => {
   vi.resetAllMocks();
@@ -24,19 +25,20 @@ beforeEach(async () => {
   vi.mocked(loadAvailableSets).mockResolvedValue({
     sets: [{ slug: 'demo', name: 'Demo' } as any], fromBackup: false, notice: null,
   });
-  vi.mocked(runtime.loadDataset).mockResolvedValue({
-    aggregation: { parts: {}, aggregated_parts: [{ id: 1 }, { id: 2 }] },
-    colorsConfig: {}, catalog,
-  } as any);
-  vi.mocked(runtime.createVisualizerInContainer).mockReturnValue({});
-  vi.mocked(runtime.initializeAggregationScene).mockResolvedValue(2);
-  vi.mocked(runtime.raycastParts).mockImplementation(() => ({ partId: parentId } as any));
-  vi.mocked(runtime.getValidPlacementsAtParent).mockImplementation((_agg, name, id) => {
+  getValidPlacementsAtParent = vi.fn((name, id) => {
     if (id === 1 && (name === 'B' || name === 'D')) {
       return [{ parentPartId: id, partName: name, connectionId: 0, connectionBId: 0 }];
     }
     return [];
   });
+  vi.mocked(runtime.loadDataset).mockResolvedValue({
+    aggregation: { parts: {}, aggregated_parts: [{ id: 1 }, { id: 2 }],
+      getValidPlacementsAtParent, setActivePartTypes: vi.fn() },
+    colorsConfig: {}, catalog, warnings: [],
+  } as any);
+  vi.mocked(runtime.createVisualizerInContainer).mockReturnValue({});
+  vi.mocked(runtime.initializeAggregationScene).mockResolvedValue(2);
+  vi.mocked(runtime.raycastParts).mockImplementation(() => ({ partId: parentId } as any));
   const result = render(
     <MemoryRouter initialEntries={['/build/demo']}>
       <Routes><Route path="/build/:slug" element={<BuildScreen onOpenAbout={() => {}} />} /></Routes>
@@ -73,7 +75,7 @@ it('disables incompatible parts in both lists and cycles only valid parts with w
   expect(useBuildStore.getState().selectedPartName).toBe('B');
   fireEvent.keyDown(window, { key: 'ArrowUp' });
   expect(useBuildStore.getState().selectedPartName).toBe('D');
-  expect(runtime.getValidPlacementsAtParent).toHaveBeenCalledTimes(4);
+  expect(getValidPlacementsAtParent).toHaveBeenCalledTimes(4);
 });
 
 it('preserves the parent when selecting candidates from either list and reuses cached placements', () => {
@@ -85,20 +87,20 @@ it('preserves the parent when selecting candidates from either list and reuses c
   expect(runtime.addGhostMeshes).toHaveBeenLastCalledWith(
     expect.anything(), [expect.objectContaining({ parentPartId: 1, partName: 'B' })], expect.anything(),
   );
-  expect(runtime.getValidPlacementsAtParent).toHaveBeenCalledTimes(4);
+  expect(getValidPlacementsAtParent).toHaveBeenCalledTimes(4);
 });
 
 it('retains a compatible candidate and safely handles one or no available parts', () => {
   fireEvent.click(partButtons('D')[0]);
   fireEvent.click(viewer);
   expect(useBuildStore.getState().selectedPartName).toBe('D');
-  vi.mocked(runtime.getValidPlacementsAtParent).mockImplementation((_agg, name, id) =>
+  getValidPlacementsAtParent.mockImplementation((name, id) =>
     name === 'D' ? [{ parentPartId: id, partName: name, connectionId: 0 }] : []);
   fireEvent.click(viewer);
   fireEvent.keyDown(window, { key: 'ArrowDown' });
   expect(useBuildStore.getState().selectedPartName).toBe('D');
   parentId = 2;
-  vi.mocked(runtime.getValidPlacementsAtParent).mockReturnValue([]);
+  getValidPlacementsAtParent.mockReturnValue([]);
   fireEvent.click(viewer);
   expect(useBuildStore.getState().selectedPartName).toBeNull();
   expect(screen.getByText('No valid placements on this part')).toBeTruthy();
@@ -137,9 +139,9 @@ it('clears availability after placing a ghost and recomputes it for the next par
   );
   expect(partButtons('A').every((button) => !button.disabled)).toBe(true);
   vi.mocked(runtime.raycastGhosts).mockReturnValue(null);
-  vi.mocked(runtime.getValidPlacementsAtParent).mockReturnValue([]);
+  getValidPlacementsAtParent.mockReturnValue([]);
   fireEvent.click(viewer);
-  expect(runtime.getValidPlacementsAtParent).toHaveBeenCalledTimes(8);
+  expect(getValidPlacementsAtParent).toHaveBeenCalledTimes(8);
   expect(useBuildStore.getState().selectedPartName).toBeNull();
 });
 
@@ -152,4 +154,25 @@ it('clears availability when loading a different dataset', async () => {
   });
   await waitFor(() => expect(runtime.loadDataset).toHaveBeenCalledTimes(2));
   expect(partButtons('A').every((button) => !button.disabled)).toBe(true);
+});
+
+it('queries and caches availability using the exact string parent ID', () => {
+  parentId = '42-beam_with_underscores';
+  getValidPlacementsAtParent.mockImplementation((name, id) =>
+    name === 'D' && id === parentId
+      ? [{ parentPartId: id, partName: name, connectionId: 0, connectionBId: 0 }]
+      : []);
+  fireEvent.click(viewer);
+  expect(useBuildStore.getState().selectedPartName).toBe('D');
+  expect(getValidPlacementsAtParent).toHaveBeenCalledTimes(4);
+  for (const entry of catalog) {
+    expect(getValidPlacementsAtParent).toHaveBeenCalledWith(entry.name, parentId);
+  }
+  expect(partButtons('A').every(button => button.disabled)).toBe(true);
+  fireEvent.keyDown(window, { key: 'ArrowDown' });
+  expect(useBuildStore.getState().selectedPartName).toBe('D');
+  expect(getValidPlacementsAtParent).toHaveBeenCalledTimes(4);
+  expect(runtime.addGhostMeshes).toHaveBeenLastCalledWith(
+    expect.anything(), [expect.objectContaining({ parentPartId: parentId, partName: 'D' })], expect.anything(),
+  );
 });

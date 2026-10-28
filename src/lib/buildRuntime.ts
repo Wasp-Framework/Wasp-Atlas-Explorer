@@ -7,12 +7,7 @@
  */
 
 import { Aggregation, Visualizer } from 'webwaspjs';
-import {
-  createAggregationFromData,
-  getAggregationCatalogParts,
-  getValidPlacementsAtParent,
-  setActivePartTypes,
-} from 'webwaspjs';
+import { sanitizeUploadedAggregationData } from './uploadSanitizer';
 import type { PartCatalogEntry } from '../state/buildState';
 import {
   applyAggregationColors,
@@ -75,6 +70,7 @@ export type LoadResult = {
   aggregation: any;
   colorsConfig: any;
   catalog: PartCatalogEntry[];
+  warnings: string[];
 };
 
 function getAggregationRuntimeDiagnostics(aggregation: any) {
@@ -118,9 +114,10 @@ export async function loadDataset(
 ): Promise<LoadResult> {
   const data = await loadJson(`${set.path}${set.aggregation}`);
   const resolvedColorsConfig = await resolveColors(set);
-  const agg = createAggregationFromData(data);
+  const { aggregationData, warnings } = sanitizeUploadedAggregationData(data);
+  const agg = Aggregation.fromData(aggregationData);
   assertAggregationExportCompatibility(agg, `loadDataset(${set.path}${set.aggregation})`);
-  const parts = getAggregationCatalogParts(agg);
+  const parts = agg.getBaseParts();
   const fallbackColorsConfig = createDefaultPartColorConfig(parts.map((part: any) => part.name));
   const colorsConfig = resolvedColorsConfig || fallbackColorsConfig;
   if (colorsConfig) applyAggregationColors(agg, colorsConfig);
@@ -134,15 +131,16 @@ export async function loadDataset(
     active: true,
   }));
 
-  return { aggregation: agg, colorsConfig, catalog };
+  return { aggregation: agg, colorsConfig, catalog, warnings };
 }
 
 export async function loadUploadedDataset(
   payload: { aggregationData: any; byPart?: Record<string, string> },
 ): Promise<LoadResult> {
-  const agg = createAggregationFromData(payload.aggregationData);
+  const { aggregationData, warnings } = sanitizeUploadedAggregationData(payload.aggregationData);
+  const agg = Aggregation.fromData(aggregationData);
   assertAggregationExportCompatibility(agg, 'loadUploadedDataset');
-  const parts = getAggregationCatalogParts(agg);
+  const parts = agg.getBaseParts();
   const fallbackColorsConfig = createDefaultPartColorConfig(parts.map((part: any) => part.name));
   const inputByPart = payload.byPart || {};
   const byPart = parts.reduce<Record<string, string>>((acc, part: any) => {
@@ -163,7 +161,7 @@ export async function loadUploadedDataset(
     active: true,
   }));
 
-  return { aggregation: agg, colorsConfig, catalog };
+  return { aggregation: agg, colorsConfig, catalog, warnings };
 }
 
 /* ── visualizer lifecycle ── */
@@ -176,7 +174,15 @@ export function createVisualizerInContainer(container: HTMLElement): any {
 
   // Keep WebWasp's inline renderer sizing on an inner node. The outer container
   // remains CSS-controlled so orientation changes cannot distort the grid.
-  return new Visualizer(rendererHost as any, container as any);
+  const visualizer = new Visualizer(rendererHost as any, container as any);
+  const addEntity = visualizer.addEntity.bind(visualizer);
+  visualizer.addEntity = (part: any) => {
+    addEntity(part);
+    // Preserve exact IDs, including underscores and numeric prefixes, for picking.
+    const mesh = visualizer.scene.getObjectByName(`${part.name}_${part.id}`);
+    if (mesh) mesh.userData.partId = part.id;
+  };
+  return visualizer;
 }
 
 export function disposeVisualizer(viz: any) {
@@ -286,13 +292,11 @@ export {
   getGhostCount,
   getGhostPlacementData,
   getGhostPlacements,
-  getValidPlacementsAtParent,
   highlightGhost,
   placeFirstPartManually,
   placePartManually,
   raycastGhosts,
   raycastParts,
   removePartById,
-  setActivePartTypes,
   unhighlightGhosts,
 };

@@ -1,10 +1,11 @@
 import { getPartPreviewColor } from './waspAdapters';
 import { Group, Raycaster, Vector2 } from 'three';
+import type { PartId } from '../state/buildState';
 
 type GhostPlacement = {
   transformedPart: { geo: any };
   connectionId: number;
-  parentPartId: number;
+  parentPartId: PartId;
   partName: string;
   connectionBId: number;
 };
@@ -133,10 +134,9 @@ export function raycastParts(visualizer: any, event: { clientX: number; clientY:
   if (intersects.length === 0) return null;
 
   const hit = intersects[0];
-  const nameParts = hit.object.name.split('_');
-  const partId = nameParts.length >= 2 ? parseInt(nameParts[nameParts.length - 1], 10) : null;
-
-  return { object: hit.object, point: hit.point, partId: Number.isNaN(partId) ? null : partId };
+  const partId = hit.object.userData.partId;
+  return { object: hit.object, point: hit.point,
+    partId: typeof partId === 'number' || typeof partId === 'string' ? partId : null };
 }
 
 export function raycastGhosts(visualizer: any, event: { clientX: number; clientY: number }) {

@@ -1,7 +1,19 @@
-import { BoxGeometry, Mesh, MeshStandardMaterial, Scene } from 'three';
+import { BoxGeometry, Mesh, MeshStandardMaterial, PerspectiveCamera, Scene } from 'three';
 import { applyColors } from './buildRuntime';
 import { applyAggregationColors, placePartManually } from './waspAdapters';
-import { addGhostMeshes, clearGhostMeshes, highlightGhost, unhighlightGhosts } from './viewerInteraction';
+import { addGhostMeshes, clearGhostMeshes, highlightGhost, unhighlightGhosts, raycastParts } from './viewerInteraction';
+
+it.each(['42-beam_with_underscores', 42, '42'])('picks the exact authored ID %s without parsing mesh names', id => {
+  const mesh = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+  mesh.name = 'irrelevant_99';
+  mesh.userData.partId = id;
+  const scene = new Scene(); scene.add(mesh); scene.updateMatrixWorld(true);
+  const camera = new PerspectiveCamera(50, 1, .1, 100); camera.position.z = 5; camera.updateMatrixWorld();
+  const viz = { scene, camera, renderer: {domElement: {getBoundingClientRect: () => ({left:0,top:0,width:100,height:100})}} };
+  expect(raycastParts(viz, {clientX:50,clientY:50})?.partId).toBe(id);
+  delete mesh.userData.partId;
+  expect(raycastParts(viz, {clientX:50,clientY:50})?.partId).toBeNull();
+});
 
 it('previews random colors, preserves the placed color, and updates existing previews when colors change', () => {
   const source = { name: 'A', geo: new Mesh(new BoxGeometry(), new MeshStandardMaterial()) };

@@ -20,14 +20,12 @@ import {
   getGhostPlacementData,
   getGhostPlacements,
   normalizeHex,
-  getValidPlacementsAtParent,
   highlightGhost,
   placeFirstPartManually,
   placePartManually,
   raycastGhosts,
   raycastParts,
   removePartById,
-  setActivePartTypes,
   unhighlightGhosts,
 } from '../lib/buildRuntime';
 import { Navbar } from '../components/Navbar';
@@ -38,6 +36,8 @@ import { PartColorSettings } from '../components/PartColorSettings';
 import { PartPreviewBar } from '../components/PartPreviewBar';
 import { RandomControls } from '../components/RandomControls';
 import { ManualControls } from '../components/ManualControls';
+import { readBuildStatus } from '../lib/waspAdapters';
+import type { PartId } from '../state/buildState';
 
 export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const { slug } = useParams<{ slug: string }>();
@@ -46,6 +46,10 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const isEmbedMode = searchParams.get('embed') === '1';
   const [isUsageOpen, setIsUsageOpen] = React.useState(false);
   const [randomColors, setRandomColors] = React.useState(true);
+  const [actualPartCount, setActualPartCount] = React.useState(0);
+  const [remainingStock, setRemainingStock] = React.useState<Record<string, number>>();
+  const [growthNotice, setGrowthNotice] = React.useState('');
+  const [openingWarnings, setOpeningWarnings] = React.useState<string[]>([]);
   const [isPartSettingsOpen, setIsPartSettingsOpen] = React.useState(false);
   const {
     buildMode,
@@ -114,12 +118,25 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const placementsByConnRef = useRef<Map<number, any[]>>(new Map());
   /** Index into the variant list for the currently-selected parent part's connection */
   const activeVariantIndexRef = useRef<Map<number, number>>(new Map());
-  const selectedParentRef = useRef<number | null>(null);
+  const selectedParentRef = useRef<PartId | null>(null);
   /** Reuse availability checks when switching candidate parts at the selected parent. */
   const parentPlacementsRef = useRef<Map<string, any[]> | null>(null);
   /** The ghost index currently previewed for placement */
   const hoveredGhostRef = useRef<number | null>(null);
   const lastPointerTypeRef = useRef<string>('mouse');
+
+  const syncBuildStatus = useCallback((targetCount?: number) => {
+    const status = readBuildStatus(aggRef.current, targetCount);
+    setActualPartCount(status.actualCount);
+    setRemainingStock(status.remainingStock);
+    setGrowthNotice(status.message);
+  }, []);
+
+  useEffect(() => {
+    if (!openingWarnings.length) return;
+    const timeout = window.setTimeout(() => setOpeningWarnings([]), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [openingWarnings]);
 
   useEffect(() => {
     let active = true;
@@ -181,9 +198,12 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     activeVariantIndexRef.current = new Map();
     hoveredGhostRef.current = null;
     setLoading(true);
+    setOpeningWarnings([]);
+    setGrowthNotice('');
 
     (async () => {
       try {
+        if (set?.compatibilityError) throw new Error(set.compatibilityError);
         const result = isCustomUpload
           ? await loadUploadedDataset(uploadedDataset as any)
           : await loadDataset(set as DemoSetConfig);
@@ -191,6 +211,9 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         if (cancelled) return;
 
         aggRef.current = aggregation;
+        setOpeningWarnings(isCustomUpload
+          ? [...new Set([...uploadedDatasetWarnings, ...result.warnings])]
+          : []);
         colorsRef.current = { ...colorsConfig, randomPerInstance: catalog.length === 1 };
         setRandomColors(true);
         applyColors(aggregation, colorsRef.current);
@@ -201,8 +224,11 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           vizRef.current = createVisualizerInContainer(canvasRef.current);
         }
 
+        const hadPlacedParts = aggregation.aggregated_parts.length > 0;
         const initialPartCount = await initializeAggregationScene(aggregation, vizRef.current, 50);
+        if (cancelled) return;
         setAggregationTarget(initialPartCount);
+        syncBuildStatus(hadPlacedParts ? undefined : 50);
         frameScene(vizRef.current);
 
         setLoaded({
@@ -211,7 +237,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           catalog,
         });
       } catch (err: any) {
-        if (!cancelled) setLoadError(err.message);
+        if (!cancelled) setLoadError(isCustomUpload ? err.message : 'Could not open this dataset. Please try again.');
       }
     })();
 
@@ -306,7 +332,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     }
 
     const allPlacements: any[] = parentPlacementsRef.current?.get(partName)
-      ?? getValidPlacementsAtParent(agg, partName, parentId);
+      ?? agg.getValidPlacementsAtParent(partName, parentId);
 
     // Group by connectionId
     const byConn = new Map<number, any[]>();
@@ -352,16 +378,21 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
   /* ── Random mode: slider ── */
   const handleTargetChange = useCallback(
-    (targetCount: number) => {
+    async (targetCount: number) => {
       setAggregationTarget(targetCount);
       const agg = aggRef.current;
       const viz = vizRef.current;
       if (agg && viz) {
-        growToTarget(agg, targetCount, viz);
-        updateSceneCameraConstraints(viz);
+        try {
+          await growToTarget(agg, targetCount, viz);
+          syncBuildStatus(targetCount);
+          updateSceneCameraConstraints(viz);
+        } catch (error: any) {
+          setLoadError(error.message);
+        }
       }
     },
-    [setAggregationTarget],
+    [setAggregationTarget, syncBuildStatus, setLoadError],
   );
 
   const handleDownload = useCallback(() => {
@@ -415,6 +446,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const handleToggleActive = useCallback(
     (partName: string) => {
       togglePartActive(partName);
+      setGrowthNotice('');
       // We'll sync activePartTypes after state update via effect
     },
     [togglePartActive],
@@ -426,9 +458,9 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     if (!agg) return;
     const activeNames = catalog.filter((p) => p.active).map((p) => p.name);
     if (activeNames.length === catalog.length) {
-      setActivePartTypes(agg, null); // all active
+      agg.setActivePartTypes(null); // all active
     } else {
-      setActivePartTypes(agg, activeNames);
+      agg.setActivePartTypes(activeNames);
     }
   }, [catalog]);
 
@@ -450,8 +482,6 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       cfg.byPart[partName] = normalized;
       colorsRef.current = cfg;
       applyColors(agg, cfg, viz);
-      // Re-render current part count to refresh materials
-      growToTarget(agg, aggregationTargetCount, viz);
       updateSceneCameraConstraints(viz);
     },
     [setPartColor, aggregationTargetCount],
@@ -518,6 +548,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         if (selectedPartName) {
           placeFirstPartManually(agg, selectedPartName, viz);
           setAggregationTarget(agg.aggregated_parts.length);
+          syncBuildStatus();
           frameScene(viz);
         }
         return;
@@ -545,6 +576,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         );
         clearOverlays();
         setAggregationTarget(agg.aggregated_parts.length);
+        syncBuildStatus();
         updateSceneCameraConstraints(viz);
         return;
       }
@@ -555,7 +587,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         const placements = new Map<string, any[]>();
         const available = new Set<string>();
         for (const entry of catalog) {
-          const validPlacements = getValidPlacementsAtParent(agg, entry.name, partHit.partId);
+          const validPlacements = agg.getValidPlacementsAtParent(entry.name, partHit.partId);
           placements.set(entry.name, validPlacements);
           if (validPlacements.length > 0) available.add(entry.name);
         }
@@ -589,6 +621,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
         removePartById(agg, hit.partId, viz);
         clearOverlays();
         setAggregationTarget(agg.aggregated_parts.length);
+        syncBuildStatus();
         updateSceneCameraConstraints(viz);
       }
     },
@@ -722,7 +755,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
           {!isEmbedMode ? (
             <div className="build-viewer__dataset-name">
-              Dataset: {setName || currentSet?.name || slug}
+              <span className="build-viewer__dataset-title">{setName || currentSet?.name || slug}</span>
+              <span className="build-viewer__version">WaspJS {__WASPJS_VERSION__}</span>
             </div>
           ) : null}
 
@@ -871,6 +905,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
             {buildMode === 'random' ? (
               <RandomControls
                 targetCount={aggregationTargetCount}
+                actualCount={actualPartCount}
                 onTargetChange={handleTargetChange}
                 onOpenPartSettings={() => setIsPartSettingsOpen(true)}
               />
@@ -878,12 +913,13 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
               <ManualControls
                 selectedPartName={selectedPartName}
                 hasNoValidPlacements={availablePartNames?.size === 0}
-                partCount={aggRef.current?.aggregated_parts?.length ?? 0}
+                partCount={actualPartCount}
                 onOpenPartSettings={() => setIsPartSettingsOpen(true)}
               />
             )}
 
             <DatasetsCatalog
+              remainingStock={remainingStock}
               catalog={catalog}
               availablePartNames={availablePartNames}
               selectedPartName={selectedPartName}
@@ -892,6 +928,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
               onColorChange={handleColorChange}
               onSelectPart={handleSelectPart}
             />
+            {growthNotice ? <p role="status">{growthNotice}</p> : null}
             <div className="random-colors-desktop">{randomColorsToggle}</div>
           </div>
 
@@ -939,14 +976,13 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           {catalogNotice}
         </div>
       ) : null}
-      {uploadedDatasetWarnings.length > 0 ? (
+      {openingWarnings.length > 0 ? (
         <div
           className="dataset-source-notice dataset-source-notice--build dataset-source-notice--build-secondary"
           role="status"
           aria-live="polite"
         >
-          <strong>Unsupported upload features were ignored.</strong>{' '}
-          {uploadedDatasetWarnings.join(' ')}
+          {openingWarnings.join(' ')}
         </div>
       ) : null}
 

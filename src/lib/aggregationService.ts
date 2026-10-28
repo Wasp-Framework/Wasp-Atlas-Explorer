@@ -1,7 +1,5 @@
-import {
-  createAggregationFromData,
-  getAggregationCatalogParts,
-} from 'webwaspjs';
+import { Aggregation } from 'webwaspjs';
+import { sanitizeUploadedAggregationData } from './uploadSanitizer';
 import {
   applyAggregationColors,
   setAggregationPartCount,
@@ -10,8 +8,8 @@ import {
 } from './waspAdapters';
 
 export const aggregationService = {
-  createAggregationFromData,
-  getAggregationCatalogParts,
+  createAggregationFromData: (data: any) => Aggregation.fromData(sanitizeUploadedAggregationData(data).aggregationData),
+  getAggregationCatalogParts: (aggregation: any): any[] => aggregation.getBaseParts(),
   applyAggregationColors,
   setAggregationPartCount,
   frameVisualizerToScene,

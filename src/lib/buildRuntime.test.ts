@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { createAggregationFromData } from 'webwaspjs';
+import { Aggregation } from 'webwaspjs';
 import {
   disposeVisualizer,
   downloadAggregationData,
@@ -27,8 +27,8 @@ describe('buildRuntime export helpers', () => {
     expect(getAggregationDownloadFileName('')).toBe('aggregation.json');
   });
 
-  it('confirms real webwaspjs 0.3.5 aggregations expose toData for Wasp-compatible export', () => {
-    const aggregation = createAggregationFromData({
+  it('confirms real webwaspjs 0.3.10 aggregations expose toData for Wasp-compatible export', () => {
+    const aggregation = Aggregation.fromData({
       object_type: 'Aggregation',
       name: 'Direct toData check',
       parts: [],

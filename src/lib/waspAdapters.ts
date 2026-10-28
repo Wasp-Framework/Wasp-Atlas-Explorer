@@ -1,5 +1,6 @@
 import { DEFAULT_NEON_RAINBOW_PALETTE } from './defaultColors';
 import { Box3, MeshStandardMaterial, Sphere, Vector3 } from 'three';
+import type { PartId } from '../state/buildState';
 
 export type AggregationColors = {
   randomPerInstance?: boolean;
@@ -100,6 +101,23 @@ export async function setAggregationPartCount(aggregation: any, targetCount: num
   updateVisualizerCameraConstraints(visualizer);
 }
 
+export function readBuildStatus(aggregation: any, targetCount?: number) {
+  const actualCount = aggregation?.aggregated_parts?.length ?? 0;
+  const inventory = aggregation?.catalog;
+  const remainingStock: Record<string, number> | undefined = inventory?.is_limited
+    ? Object.fromEntries(inventory.parts.map((name: string) => [name, inventory.dict[name]])) : undefined;
+  let message = '';
+  if (targetCount != null && actualCount < targetCount) {
+    const activeNames = Object.keys(aggregation.parts).filter(name =>
+      !aggregation.activePartTypes || aggregation.activePartTypes.has(name));
+    const stockBlocked = inventory?.is_limited && activeNames.length > 0 &&
+      activeNames.every(name => !inventory.canConsume(name));
+    message = `Placed ${actualCount} of ${targetCount} requested. ${stockBlocked
+      ? 'No stock is available for the active parts.' : 'No further placements are available with the current parts and rules.'}`;
+  }
+  return { actualCount, remainingStock, message };
+}
+
 function getSceneBoundsExcludingGhosts(visualizer: any) {
   const box = new Box3();
   if (!visualizer?.scene) return box;
@@ -180,7 +198,7 @@ export function placeFirstPartManually(aggregation: any, partName: string, visua
 
 export function placePartManually(
   aggregation: any,
-  parentPartId: number,
+  parentPartId: PartId,
   connectionId: number,
   partName: string,
   connectionBId: number,
@@ -200,14 +218,15 @@ export function placePartManually(
   return result;
 }
 
-export function removePartById(aggregation: any, partId: number, visualizer?: any) {
+export function removePartById(aggregation: any, partId: PartId, visualizer?: any) {
   if (!aggregation) return false;
   const part = aggregation.aggregated_parts.find((p: any) => p.id === partId);
   if (!part) return false;
   if (part.children && part.children.length > 0) return false;
-  if (visualizer) {
+  const removed = aggregation.removePartFromAggregation(partId);
+  if (removed && visualizer) {
     visualizer.removeEntity(part);
     updateVisualizerCameraConstraints(visualizer);
   }
-  return aggregation.removePartFromAggregation(partId);
+  return removed;
 }

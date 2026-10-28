@@ -2,6 +2,7 @@ import React from 'react';
 import type { PartCatalogEntry, BuildMode } from '../state/buildState';
 
 type Props = {
+  remainingStock?: Record<string, number>;
   catalog: PartCatalogEntry[];
   availablePartNames?: Set<string> | null;
   selectedPartName: string | null;
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function DatasetsCatalog({
+  remainingStock,
   catalog,
   availablePartNames,
   selectedPartName,
@@ -54,6 +56,7 @@ export function DatasetsCatalog({
                 title={buildMode === 'manual' ? (isUnavailable ? 'No valid placements on this part' : 'Select for placement') : entry.name}
               >
                 {entry.name}
+                {remainingStock?.[entry.name] != null ? ` (${remainingStock[entry.name]} left)` : ''}
               </button>
 
               <label className="part-catalog__color" title={`Change color for ${entry.name}`}>

@@ -2,16 +2,18 @@ import React from 'react';
 
 type Props = {
   targetCount: number;
+  actualCount: number;
   onTargetChange: (count: number) => void;
   onOpenPartSettings: () => void;
 };
 
-export function RandomControls({ targetCount, onTargetChange, onOpenPartSettings }: Props) {
+export function RandomControls({ targetCount, actualCount, onTargetChange, onOpenPartSettings }: Props) {
   return (
     <div className="random-controls">
       <div className="controls-toolbar">
         <label className="random-controls__label">
-          Parts: <strong>{targetCount}</strong>
+          Parts: <strong>{actualCount}</strong>
+          {targetCount !== actualCount ? <> · Target: {targetCount}</> : null}
         </label>
         <button
           className="controls-toolbar__settings"

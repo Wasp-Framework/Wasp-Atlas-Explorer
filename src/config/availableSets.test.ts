@@ -17,7 +17,7 @@ describe('availableSets', () => {
       }
       return {};
     });
-    vi.doMock('webwaspjs', () => ({ createAggregationFromData }));
+    vi.doMock('webwaspjs', () => ({ Aggregation: { fromData: createAggregationFromData } }));
 
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -138,11 +138,11 @@ describe('availableSets', () => {
 
     expect(result.fromBackup).toBe(false);
     expect(result.notice).toBeNull();
-    expect(result.sets.length).toBe(2);
-    expect(progressivelyLoaded.sort()).toEqual(['a-set', 'z-set']);
+    expect(result.sets.length).toBe(3);
+    expect(progressivelyLoaded.sort()).toEqual(['a-set', 'broken-set', 'z-set']);
 
     const names = result.sets.map((set) => set.name);
-    expect(names).toEqual(['Alpha Set', 'Zeta Set']);
+    expect(names).toEqual(['Alpha Set', 'Broken Set', 'Zeta Set']);
 
     for (const set of result.sets) {
       expect(set.slug).toBeTruthy();
@@ -164,7 +164,7 @@ describe('availableSets', () => {
       partsCount: 3,
       rulesCount: 9,
     });
-    expect(result.sets[1]).toMatchObject({
+    expect(result.sets[2]).toMatchObject({
       name: 'Zeta Set',
       description: 'Z desc',
       author: 'Author Z',
@@ -176,6 +176,7 @@ describe('availableSets', () => {
       rulesCount: 21,
     });
 
+    expect(result.sets[1].compatibilityError).toContain('Invalid aggregation payload');
     expect(createAggregationFromData).toHaveBeenCalledTimes(3);
     expect(infoSpy).toHaveBeenCalledTimes(2);
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -183,7 +184,7 @@ describe('availableSets', () => {
   });
 
   it('publishes validated datasets before slower validations finish', async () => {
-    vi.doMock('webwaspjs', () => ({ createAggregationFromData: vi.fn(() => ({})) }));
+    vi.doMock('webwaspjs', () => ({ Aggregation: { fromData: vi.fn(() => ({})) } }));
     vi.spyOn(console, 'info').mockImplementation(() => {});
 
     let finishSlowDataset!: () => void;

@@ -1,6 +1,7 @@
 /* ── Build-screen state (replaces old DemoState) ── */
 
 export type BuildMode = 'random' | 'manual';
+export type PartId = string | number;
 
 export type PartCatalogEntry = {
   name: string;

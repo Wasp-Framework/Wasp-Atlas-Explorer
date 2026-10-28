@@ -1,31 +1,41 @@
-import { createAggregationFromData } from 'webwaspjs';
+import { Aggregation } from 'webwaspjs';
 import { sanitizeUploadedAggregationData } from './uploadSanitizer';
 
 describe('sanitizeUploadedAggregationData', () => {
-  it('removes unsupported top-level features and part classes while preserving supported parts', () => {
+  it('retains unsupported semantics for core rejection instead of deleting them', () => {
     const rawData = {
-      parts: [
-        { class_type: 'Part', name: 'Beam' },
-        { class_type: 'MeshConstraint', name: 'Ignored constraint proxy' },
-        { class_type: 'Part', name: 'Node' },
-      ],
-      global_constraints: [{ type: 'MeshConstraint' }, { type: 'PlaneConstraint' }],
+      parts: [{ class_type: 'MeshConstraint', name: 'Unsupported' }],
+      global_constraints: [{ type: 'MeshConstraint' }],
       catalog: { foo: 'bar' },
     };
+    const before = JSON.stringify(rawData);
+    const { aggregationData, warnings } = sanitizeUploadedAggregationData(rawData);
+    expect(aggregationData.parts).toEqual(rawData.parts);
+    expect(aggregationData.global_constraints).toEqual(rawData.global_constraints);
+    expect(aggregationData.catalog).toEqual(rawData.catalog);
+    expect(warnings).toEqual([]);
+    expect(JSON.stringify(rawData)).toBe(before);
+    expect(() => Aggregation.fromData(aggregationData)).toThrow();
+  });
 
-    const result = sanitizeUploadedAggregationData(rawData);
+  it('removes Field data only from the opened copy with a conversion notice', () => {
+    const raw = { mode: 2, parts: [], rules: [], field: [{ name: 'authored field' }] };
+    const { aggregationData, warnings } = sanitizeUploadedAggregationData(raw);
+    expect(aggregationData.mode).toBe(0);
+    expect(aggregationData.field).toBeNull();
+    expect(raw.field).toEqual([{ name: 'authored field' }]);
+    expect(warnings.join(' ')).toContain('Field data was removed');
+    expect(Aggregation.fromData(aggregationData).mode).toBe(0);
+  });
 
-    expect(result.aggregationData.parts).toEqual([
-      { class_type: 'Part', name: 'Beam' },
-      { class_type: 'Part', name: 'Node' },
-    ]);
-    expect(result.aggregationData.global_constraints).toEqual([]);
-    expect(result.aggregationData.catalog).toBeUndefined();
-    expect(result.warnings).toEqual([
-      'Ignored unsupported part classes: MeshConstraint (1).',
-      'Ignored unsupported global constraints (2).',
-      'Ignored unsupported catalog data from the uploaded aggregation.',
-    ]);
+  it('opens an independent Mode-0 copy while preserving other authored data', () => {
+    const raw = { mode: 2, parts: [], rules: [], extra: { producer: 'GH' } };
+    const { aggregationData, warnings } = sanitizeUploadedAggregationData(raw);
+    expect(aggregationData.mode).toBe(0);
+    expect(raw.mode).toBe(2);
+    expect(aggregationData.extra).toEqual(raw.extra);
+    expect(warnings.join(' ')).toContain('Mode 0 instead of Mode 2');
+    expect(Aggregation.fromData(aggregationData).mode).toBe(0);
   });
 
   it('normalizes Wasp serialized uploads without stripping supported aggregation state', () => {
@@ -61,7 +71,7 @@ describe('sanitizeUploadedAggregationData', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it('accepts webwaspjs 0.3.5 serialized aggregation payloads', () => {
+  it('accepts webwaspjs 0.3.10 serialized aggregation payloads', () => {
     const rawData = {
       object_type: 'Aggregation',
       name: 'Direct upload check',
@@ -80,7 +90,7 @@ describe('sanitizeUploadedAggregationData', () => {
     };
 
     const { aggregationData, warnings } = sanitizeUploadedAggregationData(rawData);
-    const aggregation = createAggregationFromData(aggregationData);
+    const aggregation = Aggregation.fromData(aggregationData);
 
     expect(aggregation.name).toBe('Direct upload check');
     expect(typeof aggregation.toData).toBe('function');

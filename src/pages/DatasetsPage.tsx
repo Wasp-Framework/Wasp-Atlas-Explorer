@@ -25,6 +25,7 @@ function DatasetCard({
         className="landing-card__preview"
         onClick={() => onSelect(set.slug)}
         type="button"
+        disabled={Boolean(set.compatibilityError)}
       >
         {set.thumbnail ? (
           <img
@@ -213,7 +214,7 @@ function UploadDatasetModal({
         <p className="upload-modal__help">Set colors for detected parts before opening the build screen.</p>
         {warnings.length > 0 ? (
           <div className="dataset-source-notice upload-modal__warning" role="status" aria-live="polite">
-            <strong>Loaded with unsupported features ignored.</strong>
+            <strong>Opening adjustments</strong>
             <ul className="upload-modal__warning-list">
               {warnings.map((warning) => (
                 <li key={warning}>{warning}</li>

@@ -1,4 +1,5 @@
-import { createAggregationFromData } from 'webwaspjs';
+import { Aggregation } from 'webwaspjs';
+import { sanitizeUploadedAggregationData } from '../lib/uploadSanitizer';
 
 const DEFAULT_ATLAS_RAW_BASE =
   'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas-Collection/main/';
@@ -9,6 +10,7 @@ const ATLAS_CATALOG_URL = `${ATLAS_RAW_BASE}catalog/catalog.json`;
 export const CUSTOM_UPLOAD_SLUG = '__custom_upload__';
 
 export type DemoSetConfig = {
+  compatibilityError?: string;
   slug: string;
   name: string;
   description: string;
@@ -184,15 +186,24 @@ async function validateAtlasSet(set: DemoSetConfig): Promise<boolean> {
   try {
     const response = await fetch(`${set.path}${set.aggregation}`, { cache: 'no-store' });
     if (!response.ok) {
-      logDatasetLoadResult(set, false, `HTTP ${response.status}`);
+      set.compatibilityError = `Could not load dataset: HTTP ${response.status}.`;
+      logDatasetLoadResult(set, false, set.compatibilityError);
       return false;
     }
 
     const data = await response.json();
-    createAggregationFromData(data);
+    const { aggregationData } = sanitizeUploadedAggregationData(data);
+    try {
+      Aggregation.fromData(aggregationData);
+    } catch (error: any) {
+      set.compatibilityError = `Cannot open this dataset: ${error.message}`;
+      logDatasetLoadResult(set, false, set.compatibilityError);
+      return false;
+    }
     logDatasetLoadResult(set, true);
     return true;
   } catch (error: any) {
+    set.compatibilityError = `Could not load dataset: ${error?.message || 'Unknown load error'}`;
     logDatasetLoadResult(set, false, error?.message || 'Unknown validation error');
     return false;
   }
@@ -219,7 +230,7 @@ async function fetchRemoteSets(): Promise<DemoSetConfig[]> {
     (item): item is DemoSetConfig => Boolean(item),
   );
   const validated = await Promise.all(mapped.map(async (set) => {
-    if (!(await validateAtlasSet(set))) return null;
+    await validateAtlasSet(set);
     publishValidatedSet(set);
     return set;
   }));
