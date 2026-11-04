@@ -1,6 +1,6 @@
 import { exportAggregationData, getAggregationDownloadFileName } from './buildRuntime';
 
-export const MAX_SHARE_BYTES = 20 * 1024 * 1024;
+export const MAX_SHARE_BYTES = 100 * 1024 * 1024;
 export type HiveLensSnapshot = { version: 1; filename: string; modelUnits: string | null; aggregation: any };
 export type HiveLensShare = { url: string; expiresAt: number };
 
@@ -18,7 +18,7 @@ export function captureHiveLensSnapshot(aggregation: any, name: string, units?: 
     modelUnits: normalizeHiveLensUnits(units),
     aggregation: JSON.parse(JSON.stringify(exportAggregationData(aggregation))),
   };
-  if (new Blob([JSON.stringify(snapshot)]).size > MAX_SHARE_BYTES) throw new Error('This snapshot exceeds the 20 MB sharing limit. Download the JSON instead.');
+  if (new Blob([JSON.stringify(snapshot)]).size > MAX_SHARE_BYTES) throw new Error('This snapshot exceeds the 100 MB sharing limit. Download the JSON instead.');
   return snapshot;
 }
 
@@ -37,7 +37,7 @@ export async function createHiveLensShare(snapshot: HiveLensSnapshot, destinatio
     return result;
   };
   const body = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
-  if (body.size > MAX_SHARE_BYTES) throw new Error('This snapshot exceeds the 20 MB sharing limit.');
+  if (body.size > MAX_SHARE_BYTES) throw new Error('This snapshot exceeds the 100 MB sharing limit.');
   const { uploadUrl, uploadTicket } = await request('create', {});
   const uploadLocation = new URL(uploadUrl);
   const isBlobControlPlane = uploadLocation.origin === 'https://vercel.com' && uploadLocation.pathname === '/api/blob/';

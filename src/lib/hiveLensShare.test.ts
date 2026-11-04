@@ -31,7 +31,7 @@ describe('HiveLens snapshot sharing', () => {
     expect(JSON.parse(fetcher.mock.calls[1][1].body as string)).toEqual({ uploadTicket: 'ticket' });
   });
   it('rejects excessive snapshots, API errors and unexpected upload destinations', async () => {
-    expect(() => captureHiveLensSnapshot({ toData: () => ({ text: 'x'.repeat(20 * 1024 * 1024) }) }, 'A')).toThrow('20 MB');
+    expect(() => captureHiveLensSnapshot({ toData: () => ({ text: 'x'.repeat(100 * 1024 * 1024) }) }, 'A')).toThrow('100 MB');
     const snapshot = captureHiveLensSnapshot({ toData: () => ({}) }, 'A');
     await expect(createHiveLensShare(snapshot, 'https://hivelens.example', { fetcher: vi.fn(async () => ({ ok: false, json: async () => ({ error: 'Sharing disabled' }) })) as any })).rejects.toThrow('disabled');
     const upload = vi.fn();

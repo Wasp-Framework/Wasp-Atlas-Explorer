@@ -57,7 +57,7 @@ the integration tests described in that guide. No storage secrets belong here.
 Dataset units accompany the export. When metadata is missing or unsupported,
 HiveLens asks the user to choose millimeters, centimeters, or meters before
 staging the assembly. Local assemblies are persisted in HiveLens's browser
-storage. The snapshot limit is 20 MB; Download remains available if sharing
+storage. The snapshot limit is 100 MB; Download remains available if sharing
 fails. This replaces the old same-browser messaging transfer.
 
 ## Related repositories
