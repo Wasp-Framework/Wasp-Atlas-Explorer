@@ -7,7 +7,46 @@ import {
   exportAggregationData,
   getAggregationDownloadFileName,
   initializeAggregationScene,
+  loadDataset,
 } from './buildRuntime';
+
+describe('on-demand dataset loading', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('fetches and validates the opened aggregation and preserves colors from its metadata', async () => {
+    const fromData = vi.spyOn(Aggregation, 'fromData').mockReturnValue({
+      toData: vi.fn(), getBaseParts: () => [{ name: 'A' }],
+    } as any);
+    const fetchMock = vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('meta.json')
+        ? { palette: ['#123456'], by_part: { A: '#abcdef' } }
+        : { name: 'Opened dataset', parts: [], rules: [] },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await loadDataset({ path: '/systems/demo/', aggregation: 'aggregation.json', meta: '/systems/demo/meta.json' });
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/systems/demo/aggregation.json', '/systems/demo/meta.json',
+    ]);
+    expect(fromData).toHaveBeenCalledOnce();
+    expect(fromData).toHaveBeenCalledWith(expect.objectContaining({ name: 'Opened dataset', object_type: 'Aggregation' }));
+    expect(result.catalog).toEqual([{ name: 'A', color: '#abcdef', active: true }]);
+  });
+
+  it('rejects an incompatible aggregation when opened', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    vi.spyOn(Aggregation, 'fromData').mockImplementation(() => { throw new Error('Invalid aggregation payload'); });
+
+    await expect(loadDataset({ path: '/systems/broken/', aggregation: 'aggregation.json' }))
+      .rejects.toThrow('Invalid aggregation payload');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('buildRuntime export helpers', () => {
   afterEach(() => {

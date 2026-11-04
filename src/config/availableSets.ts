@@ -1,6 +1,3 @@
-import { Aggregation } from 'webwaspjs';
-import { sanitizeUploadedAggregationData } from '../lib/uploadSanitizer';
-
 const DEFAULT_ATLAS_RAW_BASE =
   'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas-Collection/main/';
 const ATLAS_RAW_BASE = (import.meta.env.VITE_ATLAS_RAW_BASE || DEFAULT_ATLAS_RAW_BASE).replace(/\/?$/, '/');
@@ -55,6 +52,10 @@ type AtlasSystem = {
   units?: string;
   version?: string;
   software?: string;
+  colors?: string[];
+  palette?: string[];
+  byPart?: Record<string, string>;
+  by_part?: Record<string, string>;
   metrics?: {
     parts_total?: number;
     rules_total?: number;
@@ -70,40 +71,20 @@ type AtlasCatalog = {
   systems?: AtlasSystem[];
 };
 
-type AtlasMeta = {
-  title?: string;
-  description?: string | { short?: string; long?: string };
-  authors?: Array<{ name?: string }>;
-  tags?: string[];
-  license?: string | { value?: string };
-  units?: string;
-  version?: string;
-  software?: string;
-  created?: string;
-  created_at?: string;
-  thumbnail?: string;
-  colors?: string[];
-  palette?: string[];
-  byPart?: Record<string, string>;
-  by_part?: Record<string, string>;
-};
-
-function normalizeAtlasDescription(value?: AtlasSystem['description'] | AtlasMeta['description']): string {
+function normalizeAtlasDescription(value?: AtlasSystem['description']): string {
   if (!value) return '';
   if (typeof value === 'string') return value.trim();
   return (value.short || value.long || '').trim();
 }
 
-function normalizeAtlasLicense(value?: AtlasSystem['license'] | AtlasMeta['license']): string {
+function normalizeAtlasLicense(value?: AtlasSystem['license']): string {
   if (!value) return '';
   if (typeof value === 'string') return value.trim();
   return (value.value || '').trim();
 }
 
-function normalizeAtlasAuthor(system: AtlasSystem, meta: AtlasMeta | null): string {
-  const metaAuthors = Array.isArray(meta?.authors) ? meta.authors : [];
-  const systemAuthors = Array.isArray(system.authors) ? system.authors : [];
-  const authors = (metaAuthors.length ? metaAuthors : systemAuthors)
+function normalizeAtlasAuthor(system: AtlasSystem): string {
+  const authors = (Array.isArray(system.authors) ? system.authors : [])
     .map((entry) => (entry?.name || '').trim())
     .filter(Boolean);
 
@@ -111,18 +92,7 @@ function normalizeAtlasAuthor(system: AtlasSystem, meta: AtlasMeta | null): stri
   return (system.author || '').trim();
 }
 
-async function loadAtlasMeta(metaUrl?: string): Promise<AtlasMeta | null> {
-  if (!metaUrl) return null;
-  try {
-    const response = await fetch(metaUrl, { cache: 'no-store' });
-    if (!response.ok) return null;
-    return (await response.json()) as AtlasMeta;
-  } catch {
-    return null;
-  }
-}
-
-async function toAtlasSet(system: AtlasSystem): Promise<DemoSetConfig | null> {
+function toAtlasSet(system: AtlasSystem): DemoSetConfig | null {
   const relAggregation = (system.files?.aggregation || system.aggregation_url || '').trim();
   if (!relAggregation) return null;
 
@@ -135,28 +105,21 @@ async function toAtlasSet(system: AtlasSystem): Promise<DemoSetConfig | null> {
 
   const relMeta = (system.files?.meta || system.meta_url || '').trim();
   const metaUrl = relMeta ? `${ATLAS_SYSTEMS_BASE}${relMeta}` : undefined;
-  const meta = await loadAtlasMeta(metaUrl);
-
-  const tags = Array.isArray(meta?.tags) && meta.tags.length ? meta.tags : Array.isArray(system.tags) ? system.tags : [];
-  const license = normalizeAtlasLicense(meta?.license || system.license);
-  const units = (meta?.units || system.units || '').trim();
-  const version = (meta?.version || meta?.software || system.version || system.software || '').trim();
-  const created = (meta?.created || meta?.created_at || system.created || system.created_at || '').trim();
+  const tags = Array.isArray(system.tags) ? system.tags : [];
+  const license = normalizeAtlasLicense(system.license);
+  const units = (system.units || '').trim();
+  const version = (system.version || system.software || '').trim();
+  const created = (system.created || system.created_at || '').trim();
   const catalogThumb = (system.files?.thumbnail || system.thumbnail || '').trim();
-  const metaThumb = (meta?.thumbnail || '').trim();
-  const thumbnail = catalogThumb
-    ? `${ATLAS_SYSTEMS_BASE}${catalogThumb}`
-    : metaThumb
-      ? `${ATLAS_SYSTEMS_BASE}${basePath}${metaThumb}`
-      : '';
-  const colors = Array.isArray(meta?.colors) ? meta.colors : Array.isArray(meta?.palette) ? meta.palette : [];
-  const byPart = meta?.byPart || meta?.by_part || {};
+  const thumbnail = catalogThumb ? `${ATLAS_SYSTEMS_BASE}${catalogThumb}` : '';
+  const colors = Array.isArray(system.colors) ? system.colors : Array.isArray(system.palette) ? system.palette : [];
+  const byPart = system.byPart || system.by_part || {};
 
   return {
     slug,
-    name: rawName || (meta?.title || '').trim() || slug,
-    description: normalizeAtlasDescription(meta?.description) || normalizeAtlasDescription(system.description),
-    author: normalizeAtlasAuthor(system, meta),
+    name: rawName || slug,
+    description: normalizeAtlasDescription(system.description),
+    author: normalizeAtlasAuthor(system),
     path: `${ATLAS_SYSTEMS_BASE}${basePath}`,
     aggregation,
     colors,
@@ -173,51 +136,7 @@ async function toAtlasSet(system: AtlasSystem): Promise<DemoSetConfig | null> {
   };
 }
 
-function logDatasetLoadResult(set: DemoSetConfig, success: boolean, reason?: string) {
-  const prefix = `[Wasp Atlas] Dataset ${success ? 'loaded' : 'failed'}: ${set.slug}`;
-  if (success) {
-    console.info(prefix, { name: set.name, path: `${set.path}${set.aggregation}` });
-  } else {
-    console.warn(prefix, { name: set.name, path: `${set.path}${set.aggregation}`, reason });
-  }
-}
-
-async function validateAtlasSet(set: DemoSetConfig): Promise<boolean> {
-  try {
-    const response = await fetch(`${set.path}${set.aggregation}`, { cache: 'no-store' });
-    if (!response.ok) {
-      set.compatibilityError = `Could not load dataset: HTTP ${response.status}.`;
-      logDatasetLoadResult(set, false, set.compatibilityError);
-      return false;
-    }
-
-    const data = await response.json();
-    const { aggregationData } = sanitizeUploadedAggregationData(data);
-    try {
-      Aggregation.fromData(aggregationData);
-    } catch (error: any) {
-      set.compatibilityError = `Cannot open this dataset: ${error.message}`;
-      logDatasetLoadResult(set, false, set.compatibilityError);
-      return false;
-    }
-    logDatasetLoadResult(set, true);
-    return true;
-  } catch (error: any) {
-    set.compatibilityError = `Could not load dataset: ${error?.message || 'Unknown load error'}`;
-    logDatasetLoadResult(set, false, error?.message || 'Unknown validation error');
-    return false;
-  }
-}
-
 let catalogLoadPromise: Promise<CatalogLoadResult> | null = null;
-const datasetLoadedListeners = new Set<DatasetLoadedListener>();
-let validatedSets: DemoSetConfig[] = [];
-
-function publishValidatedSet(set: DemoSetConfig) {
-  validatedSets = [...validatedSets.filter((item) => item.slug !== set.slug), set]
-    .sort((a, b) => a.name.localeCompare(b.name));
-  for (const listener of datasetLoadedListeners) listener(set);
-}
 
 async function fetchRemoteSets(): Promise<DemoSetConfig[]> {
   const response = await fetch(ATLAS_CATALOG_URL, { cache: 'no-store' });
@@ -226,27 +145,13 @@ async function fetchRemoteSets(): Promise<DemoSetConfig[]> {
   }
   const data = (await response.json()) as AtlasCatalog;
   const systems = Array.isArray(data.systems) ? data.systems : [];
-  const mapped = (await Promise.all(systems.map((system) => toAtlasSet(system)))).filter(
-    (item): item is DemoSetConfig => Boolean(item),
-  );
-  const validated = await Promise.all(mapped.map(async (set) => {
-    await validateAtlasSet(set);
-    publishValidatedSet(set);
-    return set;
-  }));
-  return validated
+  return systems.map(toAtlasSet)
     .filter((item): item is DemoSetConfig => Boolean(item))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function loadAvailableSets(onDatasetLoaded?: DatasetLoadedListener): Promise<CatalogLoadResult> {
-  if (onDatasetLoaded) {
-    for (const set of validatedSets) onDatasetLoaded(set);
-    datasetLoadedListeners.add(onDatasetLoaded);
-  }
-
   if (!catalogLoadPromise) {
-    validatedSets = [];
     catalogLoadPromise = (async () => {
       try {
         const remoteSets = await fetchRemoteSets();
@@ -261,9 +166,9 @@ export async function loadAvailableSets(onDatasetLoaded?: DatasetLoadedListener)
     })();
   }
 
-  try {
-    return await catalogLoadPromise;
-  } finally {
-    if (onDatasetLoaded) datasetLoadedListeners.delete(onDatasetLoaded);
+  const result = await catalogLoadPromise;
+  if (onDatasetLoaded) {
+    for (const set of result.sets) onDatasetLoaded(set);
   }
+  return result;
 }

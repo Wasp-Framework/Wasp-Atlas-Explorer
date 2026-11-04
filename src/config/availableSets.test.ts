@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const PINNED_ATLAS_RAW_BASE =
+const ATLAS_RAW_BASE =
   'https://raw.githubusercontent.com/Wasp-Framework/Wasp-Atlas-Collection/main/';
 
 describe('availableSets', () => {
@@ -10,220 +10,102 @@ describe('availableSets', () => {
     vi.restoreAllMocks();
   });
 
-  it('loads, validates, and normalizes sets from atlas catalog + meta', async () => {
-    const createAggregationFromData = vi.fn((data: any) => {
-      if (data?.invalid) {
-        throw new Error('Invalid aggregation payload');
-      }
-      return {};
-    });
-    vi.doMock('webwaspjs', () => ({ Aggregation: { fromData: createAggregationFromData } }));
-
-    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
+  it('displays sorted datasets using only generated catalog metadata and file references', async () => {
+    const fromData = vi.fn(() => { throw new Error('Must not validate while browsing'); });
+    vi.doMock('webwaspjs', () => ({ Aggregation: { fromData } }));
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.endsWith('/catalog/catalog.json')) {
-        return {
-          ok: true,
-          json: async () => ({
-            systems: [
-              {
-                slug: 'z-set',
-                title: 'Zeta Set',
-                description: { short: 'Z desc' },
-                authors: [{ name: 'Author Z' }],
-                tags: ['tag-z'],
-                metrics: { parts_total: 7, rules_total: 21 },
-                files: {
-                  aggregation: 'z-set/aggregation.json',
-                  meta: 'z-set/meta.json',
-                  thumbnail: 'z-set/thumb.png',
-                },
+      if (url !== `${ATLAS_RAW_BASE}catalog/catalog.json`) {
+        throw new Error(`Unexpected dataset request: ${url}`);
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          systems: [
+            {
+              slug: 'z-set', title: 'Zeta Set', description: { short: 'Z desc' },
+              authors: [{ name: 'Author Z' }], tags: ['tag-z'],
+              units: 'cm', software: '2.0.0', created_at: '2026-03-03',
+              license: { value: 'GPL-3.0' },
+              metrics: { parts_total: 7, rules_total: 21 },
+              palette: ['#000000'], by_part: { Z: '#000000' },
+              files: {
+                aggregation: 'z-set/aggregation.json', meta: 'z-set/meta.json',
+                thumbnail: 'z-set/thumb.png',
               },
-              {
-                slug: 'a-set',
-                title: 'Alpha Set',
-                description: { short: 'A desc' },
-                authors: [{ name: 'Author A' }],
-                tags: ['tag-a'],
-                metrics: { parts_total: 3, rules_total: 9 },
-                files: {
-                  aggregation: 'a-set/aggregation.json',
-                  meta: 'a-set/meta.json',
-                },
-              },
-              {
-                slug: 'broken-set',
-                title: 'Broken Set',
-                description: { short: 'Broken desc' },
-                authors: [{ name: 'Broken Author' }],
-                tags: ['tag-broken'],
-                files: {
-                  aggregation: 'broken-set/aggregation.json',
-                  meta: 'broken-set/meta.json',
-                },
-              },
-            ],
-          }),
-        };
-      }
-
-      if (url.endsWith('/systems/a-set/meta.json')) {
-        return {
-          ok: true,
-          json: async () => ({
-            units: 'mm',
-            software: '1.0.0',
-            created_at: '2026-03-02',
-            colors: ['#ffffff'],
-            byPart: { A: '#ffffff' },
-            license: { value: 'MIT' },
-          }),
-        };
-      }
-
-      if (url.endsWith('/systems/z-set/meta.json')) {
-        return {
-          ok: true,
-          json: async () => ({
-            units: 'cm',
-            software: '2.0.0',
-            created_at: '2026-03-03',
-            palette: ['#000000'],
-            by_part: { Z: '#000000' },
-            license: { value: 'GPL-3.0' },
-          }),
-        };
-      }
-
-      if (url.endsWith('/systems/broken-set/meta.json')) {
-        return {
-          ok: true,
-          json: async () => ({
-            units: 'm',
-          }),
-        };
-      }
-
-      if (url.endsWith('/systems/a-set/aggregation.json')) {
-        return {
-          ok: true,
-          json: async () => ({ name: 'Alpha aggregation' }),
-        };
-      }
-
-      if (url.endsWith('/systems/z-set/aggregation.json')) {
-        return {
-          ok: true,
-          json: async () => ({ name: 'Zeta aggregation' }),
-        };
-      }
-
-      if (url.endsWith('/systems/broken-set/aggregation.json')) {
-        return {
-          ok: true,
-          json: async () => ({ invalid: true }),
-        };
-      }
-
-      return { ok: false, json: async () => ({}) };
+            },
+            {
+              slug: 'a-set', title: 'Alpha Set', description: { long: ' A desc ' },
+              authors: [{ name: 'Author A' }, { name: 'Coauthor' }], tags: ['tag-a'],
+              units: 'mm', version: '1.0.0', created: '2026-03-02', license: 'MIT',
+              metrics: { parts_total: 3, rules_total: 9 },
+              aggregation_url: 'a-set/aggregation.json', meta_url: 'a-set/meta.json',
+            },
+            {
+              slug: 'broken-set', title: 'Broken Set',
+              files: { aggregation: 'broken-set/aggregation.json' },
+            },
+            { slug: 'no-aggregation', title: 'Missing file reference' },
+          ],
+        }),
+      };
     });
-
     vi.stubGlobal('fetch', fetchMock);
 
-    const mod = await import('./availableSets');
-    const progressivelyLoaded: string[] = [];
-    const result = await mod.loadAvailableSets((set) => progressivelyLoaded.push(set.slug));
+    const { loadAvailableSets } = await import('./availableSets');
+    const loaded: string[] = [];
+    const result = await loadAvailableSets((set) => loaded.push(set.slug));
 
     expect(result.fromBackup).toBe(false);
     expect(result.notice).toBeNull();
-    expect(result.sets.length).toBe(3);
-    expect(progressivelyLoaded.sort()).toEqual(['a-set', 'broken-set', 'z-set']);
-
-    const names = result.sets.map((set) => set.name);
-    expect(names).toEqual(['Alpha Set', 'Broken Set', 'Zeta Set']);
-
-    for (const set of result.sets) {
-      expect(set.slug).toBeTruthy();
-      expect(set.name).toBeTruthy();
-      expect(set.path).toContain(`${PINNED_ATLAS_RAW_BASE}systems/`);
-      expect(set.aggregation).toBe('aggregation.json');
-      expect(Array.isArray(set.colors)).toBe(true);
-      expect(typeof set.byPart).toBe('object');
-      expect(Array.isArray(set.tags)).toBe(true);
-    }
-
+    expect(result.sets.map((set) => set.name)).toEqual(['Alpha Set', 'Broken Set', 'Zeta Set']);
+    expect(loaded).toEqual(['a-set', 'broken-set', 'z-set']);
     expect(result.sets[0]).toMatchObject({
-      name: 'Alpha Set',
-      description: 'A desc',
-      author: 'Author A',
-      version: '1.0.0',
-      created: '2026-03-02',
-      license: 'MIT',
-      partsCount: 3,
-      rulesCount: 9,
+      description: 'A desc', author: 'Author A, Coauthor', units: 'mm', version: '1.0.0',
+      created: '2026-03-02', license: 'MIT', partsCount: 3, rulesCount: 9,
+      path: `${ATLAS_RAW_BASE}systems/a-set/`, aggregation: 'aggregation.json',
+      meta: `${ATLAS_RAW_BASE}systems/a-set/meta.json`, colors: [], byPart: {},
     });
     expect(result.sets[2]).toMatchObject({
-      name: 'Zeta Set',
-      description: 'Z desc',
-      author: 'Author Z',
-      version: '2.0.0',
-      created: '2026-03-03',
-      license: 'GPL-3.0',
-      thumbnail: `${PINNED_ATLAS_RAW_BASE}systems/z-set/thumb.png`,
-      partsCount: 7,
-      rulesCount: 21,
+      description: 'Z desc', author: 'Author Z', tags: ['tag-z'], units: 'cm', version: '2.0.0',
+      created: '2026-03-03', license: 'GPL-3.0', partsCount: 7, rulesCount: 21,
+      thumbnail: `${ATLAS_RAW_BASE}systems/z-set/thumb.png`,
+      colors: ['#000000'], byPart: { Z: '#000000' },
     });
-
-    expect(result.sets[1].compatibilityError).toContain('Invalid aggregation payload');
-    expect(createAggregationFromData).toHaveBeenCalledTimes(3);
-    expect(infoSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]?.[0]).toContain('Dataset failed: broken-set');
+    expect(result.sets.every((set) => !set.compatibilityError)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(`${ATLAS_RAW_BASE}catalog/catalog.json`, { cache: 'no-store' });
+    expect(fromData).not.toHaveBeenCalled();
   });
 
-  it('publishes validated datasets before slower validations finish', async () => {
-    vi.doMock('webwaspjs', () => ({ Aggregation: { fromData: vi.fn(() => ({})) } }));
-    vi.spyOn(console, 'info').mockImplementation(() => {});
-
-    let finishSlowDataset!: () => void;
-    const slowDataset = new Promise<void>((resolve) => {
-      finishSlowDataset = resolve;
-    });
-
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url.endsWith('/catalog/catalog.json')) {
-        return {
-          ok: true,
-          json: async () => ({
-            systems: [
-              { slug: 'fast', title: 'Fast', files: { aggregation: 'fast/aggregation.json' } },
-              { slug: 'slow', title: 'Slow', files: { aggregation: 'slow/aggregation.json' } },
-            ],
-          }),
-        };
-      }
-      if (url.endsWith('/systems/slow/aggregation.json')) {
-        return { ok: true, json: async () => { await slowDataset; return {}; } };
-      }
-      return { ok: true, json: async () => ({}) };
+  it('shares one catalog request across concurrent callers and reuses the result', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ systems: [{ slug: 'demo', files: { aggregation: 'demo/aggregation.json' } }] }),
     }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { loadAvailableSets } = await import('./availableSets');
+    const firstListener = vi.fn();
+    const secondListener = vi.fn();
+    const [first, second] = await Promise.all([
+      loadAvailableSets(firstListener), loadAvailableSets(secondListener),
+    ]);
+    const cachedListener = vi.fn();
+    expect(await loadAvailableSets(cachedListener)).toBe(first);
+    expect(second).toBe(first);
+    for (const listener of [firstListener, secondListener, cachedListener]) {
+      expect(listener).toHaveBeenCalledOnce();
+      expect(listener).toHaveBeenCalledWith(first.sets[0]);
+    }
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
 
-    const mod = await import('./availableSets');
-    const loaded: string[] = [];
-    let finished = false;
-    const resultPromise = mod.loadAvailableSets((set) => loaded.push(set.slug))
-      .then((result) => {
-        finished = true;
-        return result;
-      });
-
-    await vi.waitFor(() => expect(loaded).toEqual(['fast']));
-    expect(finished).toBe(false);
-
-    finishSlowDataset();
-    const result = await resultPromise;
-    expect(result.sets.map((set) => set.slug)).toEqual(['fast', 'slow']);
+  it('reports catalog fetch failures without requesting datasets', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { loadAvailableSets } = await import('./availableSets');
+    expect(await loadAvailableSets()).toEqual({
+      sets: [], fromBackup: false, notice: 'Could not load datasets from Wasp-Atlas catalog.json.',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

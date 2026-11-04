@@ -41,9 +41,19 @@ async function loadJson(path: string) {
   return resp.json();
 }
 
-async function resolveColors(set: { colors?: string[]; byPart?: Record<string, string>; path: string }) {
+async function resolveColors(set: { colors?: string[]; byPart?: Record<string, string>; path: string; meta?: string }) {
   const hasConfig = (set.colors?.length ?? 0) > 0 || Object.keys(set.byPart ?? {}).length > 0;
   if (hasConfig) return { colors: set.colors || [], byPart: set.byPart || {} };
+  if (set.meta) {
+    try {
+      const meta = await loadJson(set.meta);
+      const colors = Array.isArray(meta?.colors) ? meta.colors : Array.isArray(meta?.palette) ? meta.palette : [];
+      const byPart = meta?.byPart || meta?.by_part || {};
+      if (colors.length || Object.keys(byPart).length) return { colors, byPart };
+    } catch {
+      // Optional metadata must not prevent opening an aggregation.
+    }
+  }
   try {
     const r = await fetch(`${set.path}colors.json`);
     if (!r.ok) return null;
@@ -110,13 +120,13 @@ function assertAggregationExportCompatibility(aggregation: any, context: string)
 }
 
 export async function loadDataset(
-  set: { path: string; aggregation: string; colors?: string[]; byPart?: Record<string, string> },
+  set: { path: string; aggregation: string; colors?: string[]; byPart?: Record<string, string>; meta?: string },
 ): Promise<LoadResult> {
   const data = await loadJson(`${set.path}${set.aggregation}`);
-  const resolvedColorsConfig = await resolveColors(set);
   const { aggregationData, warnings } = sanitizeUploadedAggregationData(data);
   const agg = Aggregation.fromData(aggregationData);
   assertAggregationExportCompatibility(agg, `loadDataset(${set.path}${set.aggregation})`);
+  const resolvedColorsConfig = await resolveColors(set);
   const parts = agg.getBaseParts();
   const fallbackColorsConfig = createDefaultPartColorConfig(parts.map((part: any) => part.name));
   const colorsConfig = resolvedColorsConfig || fallbackColorsConfig;
