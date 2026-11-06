@@ -38,11 +38,15 @@ import { RandomControls } from '../components/RandomControls';
 import { ManualControls } from '../components/ManualControls';
 import { readBuildStatus } from '../lib/waspAdapters';
 import type { PartId } from '../state/buildState';
+import { atlasMcpEnabled, markAtlasChanged, registerAtlasBuild } from '../lib/atlasBridge';
+import { runAtlasCommand } from '../lib/atlasCommands';
 
 export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const atlasLoad = searchParams.get('atlasLoad');
+  const atlasEmpty = searchParams.get('atlasEmpty') === '1';
   const isEmbedMode = searchParams.get('embed') === '1';
   const [isUsageOpen, setIsUsageOpen] = React.useState(false);
   const [randomColors, setRandomColors] = React.useState(true);
@@ -124,8 +128,12 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   /** The ghost index currently previewed for placement */
   const hoveredGhostRef = useRef<number | null>(null);
   const lastPointerTypeRef = useRef<string>('mouse');
+  const busyRef = useRef(false);
+  const loadedRequestRef = useRef<string | null>(null);
+  const sceneReadyRef = useRef(false);
 
   const syncBuildStatus = useCallback((targetCount?: number) => {
+    markAtlasChanged();
     const status = readBuildStatus(aggRef.current, targetCount);
     setActualPartCount(status.actualCount);
     setRemainingStock(status.remainingStock);
@@ -191,6 +199,9 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     }
 
     let cancelled = false;
+    sceneReadyRef.current = false;
+    loadedRequestRef.current = atlasLoad;
+    markAtlasChanged();
     selectedParentRef.current = null;
     parentPlacementsRef.current = null;
     setAvailablePartNames(null);
@@ -224,30 +235,35 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
           vizRef.current = createVisualizerInContainer(canvasRef.current);
         }
 
+        if (atlasMcpEnabled() && atlasEmpty) await growToTarget(aggregation, 0, vizRef.current);
         const hadPlacedParts = aggregation.aggregated_parts.length > 0;
-        const initialPartCount = await initializeAggregationScene(aggregation, vizRef.current, 50);
+        const defaultCount = atlasMcpEnabled() ? 0 : 50;
+        const initialPartCount = await initializeAggregationScene(aggregation, vizRef.current, defaultCount);
         if (cancelled) return;
         setAggregationTarget(initialPartCount);
-        syncBuildStatus(hadPlacedParts ? undefined : 50);
+        syncBuildStatus(hadPlacedParts ? undefined : defaultCount);
         frameScene(vizRef.current);
 
+        sceneReadyRef.current = true;
         setLoaded({
           slug: isCustomUpload ? CUSTOM_UPLOAD_SLUG : (set as DemoSetConfig).slug,
           setName: isCustomUpload ? (uploadedDataset as any).setName : (set as DemoSetConfig).name,
           catalog,
         });
+        if (atlasMcpEnabled()) setBuildMode('manual');
       } catch (err: any) {
-        if (!cancelled) setLoadError(isCustomUpload ? err.message : 'Could not open this dataset. Please try again.');
+        if (!cancelled) setLoadError(isCustomUpload || atlasMcpEnabled() ? err.message : 'Could not open this dataset. Please try again.');
       }
     })();
 
     return () => {
       cancelled = true;
+      sceneReadyRef.current = false;
       disposeVisualizer(vizRef.current);
       vizRef.current = null;
       aggRef.current = null;
     };
-  }, [slug, navigate, sets, areSetsLoaded, setLoading, setLoaded, setLoadError, uploadedDataset]);
+  }, [slug, atlasLoad, atlasEmpty, navigate, sets, areSetsLoaded, setLoading, setLoaded, setLoadError, uploadedDataset]);
 
   useEffect(() => {
     let animationFrame = 0;
@@ -376,6 +392,28 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     setHoveredGhost(null);
   }, [setHoveredGhost]);
 
+  useEffect(() => registerAtlasBuild({
+    status: () => ({
+      ready: sceneReadyRef.current && !busyRef.current,
+      busy: busyRef.current,
+      requestId: loadedRequestRef.current,
+    }),
+    execute: (command, args) => {
+      if (busyRef.current) throw new Error('An assembly edit is in progress. Wait and inspect again.');
+      return runAtlasCommand(command, args, {
+        aggregation: aggRef.current,
+        visualizer: vizRef.current,
+        onEdit: () => {
+          handleModeChange('manual');
+          clearOverlays();
+          setAggregationTarget(aggRef.current.aggregated_parts.length);
+          syncBuildStatus();
+          updateSceneCameraConstraints(vizRef.current);
+        },
+      });
+    },
+  }), [clearOverlays, handleModeChange, setAggregationTarget, syncBuildStatus]);
+
   /* ── Random mode: slider ── */
   const handleTargetChange = useCallback(
     async (targetCount: number) => {
@@ -383,12 +421,17 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       const agg = aggRef.current;
       const viz = vizRef.current;
       if (agg && viz) {
+        if (busyRef.current) return;
+        busyRef.current = true;
+        markAtlasChanged();
         try {
           await growToTarget(agg, targetCount, viz);
           syncBuildStatus(targetCount);
           updateSceneCameraConstraints(viz);
         } catch (error: any) {
           setLoadError(error.message);
+        } finally {
+          busyRef.current = false;
         }
       }
     },
@@ -445,6 +488,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   /* ── Part catalog: toggle active ── */
   const handleToggleActive = useCallback(
     (partName: string) => {
+      markAtlasChanged();
       togglePartActive(partName);
       setGrowthNotice('');
       // We'll sync activePartTypes after state update via effect
@@ -468,6 +512,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   const handleColorChange = useCallback(
     (partName: string, hex: string) => {
       const normalized = normalizeHex(hex);
+      markAtlasChanged();
       setPartColor({ name: partName, color: normalized });
       setRandomColors(false);
 
@@ -488,6 +533,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   );
 
   const handleRandomColorsChange = useCallback((enabled: boolean) => {
+    markAtlasChanged();
     setRandomColors(enabled);
     const cfg = colorsRef.current;
     if (!cfg || !aggRef.current) return;

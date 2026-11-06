@@ -1,5 +1,6 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { installAtlasBridge } from './lib/atlasBridge';
 import { LandingPage } from './pages/LandingPage';
 import { DatasetsPage } from './pages/DatasetsPage';
 import { BuildScreen } from './pages/BuildScreen';
@@ -8,6 +9,8 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { AboutModal } from './components/AboutModal';
 
 export default function App() {
+  const navigate = useNavigate();
+  React.useEffect(() => installAtlasBridge(navigate), [navigate]);
   const [isAboutOpen, setIsAboutOpen] = React.useState(false);
 
   React.useEffect(() => {
