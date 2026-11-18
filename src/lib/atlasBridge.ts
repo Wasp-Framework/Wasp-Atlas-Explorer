@@ -1,6 +1,8 @@
 /** Opt-in browser command interface. Assembly behavior stays in the Atlas runtime. */
-import { loadAvailableSets } from '../config/availableSets';
+import { CUSTOM_UPLOAD_SLUG, loadAvailableSets } from '../config/availableSets';
 import { useBuildStore } from '../state/buildStore';
+import { sanitizeUploadedAggregationData } from './uploadSanitizer';
+import { loadUploadedDataset } from './buildRuntime';
 
 type BuildCommands = (command: string, args: any) => any;
 type BuildHandle = {
@@ -38,13 +40,26 @@ export function installAtlasBridge(navigate: (path: string) => void) {
         revision: atlasRevision(),
         slug: state.slug,
         loading: state.isLoading,
+        busy: !!runtime?.busy,
         error: state.isLoading ? null : state.loadError,
         ready: !!runtime?.ready && !state.isLoading && !state.loadError,
         requestId: runtime?.requestId ?? null,
       };
     },
-    async execute(command: string, args: any = {}) {
-      if (['open_dataset', 'place_part', 'remove_part'].includes(command) && typeof args.expectedRevision !== 'string') {
+    async execute(command: string, args: any = {}, deadline = Infinity) {
+      const guard = () => {
+        if (window.waspAtlas !== bridge)
+          throw new Error('Atlas interface was disconnected before commit.');
+        if (Date.now() >= deadline) throw new Error('Atlas command expired before commit.');
+        if (args.expectedRevision !== undefined && args.expectedRevision !== atlasRevision())
+          throw new Error('stale_revision: Inspect the assembly before editing again.');
+      };
+      guard();
+      if (command === 'get_status') return { revision: atlasRevision(), value: bridge.status() };
+      if (
+        ['open_dataset', 'import_dataset', 'place_part', 'remove_part'].includes(command) &&
+        typeof args.expectedRevision !== 'string'
+      ) {
         throw new Error('Provide the current expectedRevision before editing.');
       }
       if (args.expectedRevision !== undefined && args.expectedRevision !== atlasRevision()) {
@@ -55,17 +70,48 @@ export function installAtlasBridge(navigate: (path: string) => void) {
         if (result.notice) throw new Error(result.notice);
         return { revision: atlasRevision(), value: result.sets };
       }
+      if (command === 'import_dataset') {
+        if (build?.status().busy) throw new Error('Wait for the current assembly edit to finish.');
+        const { aggregationData, warnings } = sanitizeUploadedAggregationData(args.data);
+        const prepared = await loadUploadedDataset({ aggregationData, byPart: args.byPart });
+        if (!prepared.catalog.length)
+          throw new Error('No parts were detected in aggregation.json.');
+        guard();
+        if (build?.status().busy) throw new Error('Wait for the current assembly edit to finish.');
+        const requestId = identifier();
+        const notices = [...new Set([...warnings, ...prepared.warnings])];
+        const name =
+          args.name?.trim() ||
+          (args.filename || 'aggregation.json').replace(/\.json$/i, '').trim() ||
+          'Custom upload';
+        // Validation finishes before replacing the active upload or navigating away.
+        markAtlasChanged();
+        useBuildStore.getState().setUploadedDataset({
+          setName: name,
+          aggregationData,
+          byPart: Object.fromEntries(prepared.catalog.map((part) => [part.name, part.color])),
+          warnings: notices,
+        });
+        useBuildStore.getState().setBuildMode('manual');
+        navigate(
+          `/build/${CUSTOM_UPLOAD_SLUG}?mcp=1&atlasLoad=${requestId}${args.startEmpty ? '&atlasEmpty=1' : ''}`
+        );
+        return {
+          revision: atlasRevision(),
+          value: { slug: CUSTOM_UPLOAD_SLUG, requestId, warnings: notices },
+        };
+      }
       if (command === 'open_dataset') {
         if (build?.status().busy) throw new Error('Wait for the current assembly edit to finish.');
         const result = await loadAvailableSets();
         if (!result.sets.some((set) => set.slug === args.slug))
           throw new Error('Unknown dataset slug.');
         // Recheck after the catalog request; the user may have edited in the meantime.
-        if (args.expectedRevision !== atlasRevision())
-          throw new Error('stale_revision: Inspect before opening a dataset.');
+        guard();
+        if (build?.status().busy) throw new Error('Wait for the current assembly edit to finish.');
         const requestId = identifier();
         navigate(
-          `/build/${encodeURIComponent(args.slug)}?mcp=1&atlasLoad=${requestId}${args.startEmpty ? '&atlasEmpty=1' : ''}`,
+          `/build/${encodeURIComponent(args.slug)}?mcp=1&atlasLoad=${requestId}${args.startEmpty ? '&atlasEmpty=1' : ''}`
         );
         return { revision: atlasRevision(), value: { slug: args.slug, requestId } };
       }
@@ -85,7 +131,7 @@ declare global {
     waspAtlas?: {
       version: number;
       status: () => any;
-      execute: (command: string, args?: any) => Promise<any>;
+      execute: (command: string, args?: any, deadline?: number) => Promise<any>;
     };
   }
 }

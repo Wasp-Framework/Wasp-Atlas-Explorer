@@ -11,6 +11,15 @@ import { AboutModal } from './components/AboutModal';
 export default function App() {
   const navigate = useNavigate();
   React.useEffect(() => installAtlasBridge(navigate), [navigate]);
+  React.useEffect(() => {
+    if (!__ATLAS_CONTROL_ENABLED__ || new URLSearchParams(window.location.search).get('mcp') !== '1') return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void import('waspatlas-mcp/client').then(({ startAtlasClient }) => {
+      if (!disposed) stop = startAtlasClient(import.meta.hot, () => window.waspAtlas);
+    }).catch(error => console.error('Atlas companion:', error));
+    return () => { disposed = true; stop?.(); };
+  }, []);
   const [isAboutOpen, setIsAboutOpen] = React.useState(false);
 
   React.useEffect(() => {

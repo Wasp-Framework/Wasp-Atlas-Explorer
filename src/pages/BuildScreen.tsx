@@ -147,6 +147,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
   }, [openingWarnings]);
 
   useEffect(() => {
+    // A custom upload is self-contained; do not wait on the public catalog.
+    if (slug === CUSTOM_UPLOAD_SLUG) return;
     let active = true;
     (async () => {
       const result = await loadAvailableSets();
@@ -159,7 +161,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [slug]);
 
   useEffect(() => {
     if (!actionFeedback.embed && !actionFeedback.download) return;
@@ -184,9 +186,8 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
 
   /* ── Load dataset on mount / slug change ── */
   useEffect(() => {
-    if (!areSetsLoaded) return;
-
     const isCustomUpload = slug === CUSTOM_UPLOAD_SLUG;
+    if (!isCustomUpload && !areSetsLoaded) return;
     const set = sets.find((s) => s.slug === slug);
     if (!isCustomUpload && !set) {
       navigate('/datasets', { replace: true });

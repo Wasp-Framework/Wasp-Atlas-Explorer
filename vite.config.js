@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { atlasControlPlugin } from 'waspatlas-mcp/vite';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import { readFileSync } from 'node:fs';
@@ -31,7 +32,9 @@ function resolveBasePath(mode) {
 }
 
 export default defineConfig(({ mode }) => ({
+  plugins: process.env.WASP_ATLAS_CONTROL === '1' ? [atlasControlPlugin(true)] : [],
   define: {
+    __ATLAS_CONTROL_ENABLED__: false,
     __WASPJS_VERSION__: JSON.stringify(waspjsVersion),
   },
   root: __dirname,

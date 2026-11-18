@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const waspjsVersion = JSON.parse(readFileSync(new URL('./node_modules/webwaspjs/package.json', import.meta.url), 'utf8')).version;
 
 export default defineConfig({
-  define: { __WASPJS_VERSION__: JSON.stringify(waspjsVersion) },
+  define: { __ATLAS_CONTROL_ENABLED__: false, __WASPJS_VERSION__: JSON.stringify(waspjsVersion) },
   root: '.',
   test: {
     include: ['src/**/*.test.{ts,tsx}'],

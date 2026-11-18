@@ -42,7 +42,7 @@ it('does not report a scene ready until its runtime load finishes', async () => 
     registerAtlasBuild({
       execute: () => ({ partCount: 0 }),
       status: () => ({ ready, busy: false, requestId: 'request' }),
-    }),
+    })
   );
   expect(window.waspAtlas!.status()).toMatchObject({ ready: false, requestId: 'request' });
   await expect(window.waspAtlas!.execute('inspect_assembly')).rejects.toThrow(/wait for loading/);
@@ -51,7 +51,7 @@ it('does not report a scene ready until its runtime load finishes', async () => 
   expect(result.value.partCount).toBe(0);
   markAtlasChanged();
   await expect(
-    window.waspAtlas!.execute('place_part', { expectedRevision: result.revision }),
+    window.waspAtlas!.execute('place_part', { expectedRevision: result.revision })
   ).rejects.toThrow(/stale_revision/);
 });
 
@@ -73,6 +73,39 @@ it('rechecks revisions after an asynchronous catalog load before replacing the a
     expectedRevision: window.waspAtlas!.status().revision,
   });
   expect(navigate).toHaveBeenCalledWith(
-    expect.stringMatching(/^\/build\/demo\?mcp=1&atlasLoad=.+&atlasEmpty=1$/),
+    expect.stringMatching(/^\/build\/demo\?mcp=1&atlasLoad=.+&atlasEmpty=1$/)
   );
+});
+
+it('rejects invalid custom uploads before replacing the active dataset', async () => {
+  window.history.replaceState({}, '', '/?mcp=1');
+  const navigate = vi.fn();
+  cleanup.push(installAtlasBridge(navigate));
+  const before = window.waspAtlas!.status().revision;
+  await expect(
+    window.waspAtlas!.execute('import_dataset', {
+      data: { parts: [{ class_type: 'Unsupported', name: 'bad' }] },
+      expectedRevision: before,
+    })
+  ).rejects.toThrow();
+  expect(navigate).not.toHaveBeenCalled();
+  expect(useBuildStore.getState().uploadedDataset).toBeNull();
+  expect(window.waspAtlas!.status().revision).toBe(before);
+});
+
+it('rejects an expired command without changing the current dataset', async () => {
+  window.history.replaceState({}, '', '/?mcp=1');
+  const navigate = vi.fn();
+  cleanup.push(installAtlasBridge(navigate));
+  await expect(
+    window.waspAtlas!.execute(
+      'open_dataset',
+      {
+        slug: 'demo',
+        expectedRevision: window.waspAtlas!.status().revision,
+      },
+      Date.now() - 1
+    )
+  ).rejects.toThrow(/expired/);
+  expect(navigate).not.toHaveBeenCalled();
 });
