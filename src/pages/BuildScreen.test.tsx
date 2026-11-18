@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { BuildScreen } from './BuildScreen';
 import { useBuildStore } from '../state/buildStore';
-import { loadAvailableSets } from '../config/availableSets';
+import { CUSTOM_UPLOAD_SLUG, loadAvailableSets } from '../config/availableSets';
 import * as runtime from '../lib/buildRuntime';
 
 vi.mock('../lib/buildRuntime');
@@ -175,4 +175,33 @@ it('queries and caches availability using the exact string parent ID', () => {
   expect(runtime.addGhostMeshes).toHaveBeenLastCalledWith(
     expect.anything(), [expect.objectContaining({ parentPartId: parentId, partName: 'D' })], expect.anything(),
   );
+});
+
+
+it('keeps custom upload loading visible only until its own loader finishes', async () => {
+  const loaded = await vi.mocked(runtime.loadDataset).mock.results[0].value;
+  cleanup();
+  useBuildStore.getState().resetBuildState();
+  useBuildStore.getState().setUploadedDataset({
+    setName: 'Private kit', aggregationData: {}, byPart: {},
+  });
+  vi.mocked(loadAvailableSets).mockClear();
+  vi.mocked(loadAvailableSets).mockImplementation(() => new Promise(() => {}));
+  let finishLoading!: (value: any) => void;
+  vi.mocked(runtime.loadUploadedDataset).mockImplementation(() => new Promise(resolve => {
+    finishLoading = resolve;
+  }));
+  render(
+    <MemoryRouter initialEntries={[`/build/${CUSTOM_UPLOAD_SLUG}`]}>
+      <Routes><Route path="/build/:slug" element={<BuildScreen onOpenAbout={() => {}} />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(runtime.loadUploadedDataset).toHaveBeenCalledTimes(1));
+  expect(screen.getByText('Loading Private kit…')).toBeTruthy();
+
+  await act(async () => { finishLoading(loaded); });
+  await waitFor(() => expect(useBuildStore.getState().isLoading).toBe(false));
+  expect(useBuildStore.getState().catalog).toHaveLength(4);
+  expect(screen.queryByText('Loading Private kit…')).toBeNull();
+  expect(loadAvailableSets).not.toHaveBeenCalled();
 });

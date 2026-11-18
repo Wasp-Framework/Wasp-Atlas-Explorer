@@ -1012,7 +1012,7 @@ export function BuildScreen({ onOpenAbout }: { onOpenAbout: () => void }) {
       </div>
 
       {/* Loading overlay */}
-      {(isLoading || !areSetsLoaded) && (
+      {(isLoading || (slug !== CUSTOM_UPLOAD_SLUG && !areSetsLoaded)) && (
         <div className="build-loading">
           <p>Loading {loadingLabel}…</p>
         </div>
