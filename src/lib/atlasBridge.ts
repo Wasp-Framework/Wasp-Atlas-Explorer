@@ -46,8 +46,9 @@ export function installAtlasBridge(navigate: (path: string) => void) {
         requestId: runtime?.requestId ?? null,
       };
     },
-    async execute(command: string, args: any = {}, deadline = Infinity) {
+    async execute(command: string, args: any = {}, deadline = Infinity, signal?: AbortSignal) {
       const guard = () => {
+        if (signal?.aborted) throw new Error('Atlas connection was closed before commit.');
         if (window.waspAtlas !== bridge)
           throw new Error('Atlas interface was disconnected before commit.');
         if (Date.now() >= deadline) throw new Error('Atlas command expired before commit.');
@@ -131,7 +132,12 @@ declare global {
     waspAtlas?: {
       version: number;
       status: () => any;
-      execute: (command: string, args?: any, deadline?: number) => Promise<any>;
+      execute: (
+        command: string,
+        args?: any,
+        deadline?: number,
+        signal?: AbortSignal
+      ) => Promise<any>;
     };
   }
 }

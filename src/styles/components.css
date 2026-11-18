@@ -278,3 +278,23 @@
 .is-hidden {
   display: none;
 }
+
+/* The public site's explicit, per-tab MCP connection controls. */
+.atlas-mcp-status {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid #d5d5d5;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 2px 12px #0002;
+  font-size: 13px;
+}
+.atlas-mcp-status button { flex-shrink: 0; cursor: pointer; }

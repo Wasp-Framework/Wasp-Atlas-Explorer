@@ -11,14 +11,29 @@ import { AboutModal } from './components/AboutModal';
 export default function App() {
   const navigate = useNavigate();
   React.useEffect(() => installAtlasBridge(navigate), [navigate]);
+  const [mcpStatus, setMcpStatus] = React.useState<{ state: string; message: string } | null>(null);
+  const mcpConnection = React.useRef<import('waspatlas-mcp/client').AtlasConnection>();
   React.useEffect(() => {
-    if (!__ATLAS_CONTROL_ENABLED__ || new URLSearchParams(window.location.search).get('mcp') !== '1') return;
+    if (new URLSearchParams(window.location.search).get('mcp') !== '1') return;
     let disposed = false;
-    let stop: (() => void) | undefined;
-    void import('waspatlas-mcp/client').then(({ startAtlasClient }) => {
-      if (!disposed) stop = startAtlasClient(import.meta.hot, () => window.waspAtlas);
-    }).catch(error => console.error('Atlas companion:', error));
-    return () => { disposed = true; stop?.(); };
+    void import('waspatlas-mcp/client')
+      .then(({ startAtlasClient }) => {
+        if (!disposed)
+          mcpConnection.current = startAtlasClient(() => window.waspAtlas, {
+            onStatus: (status) => {
+              if (!disposed) setMcpStatus(status);
+            },
+          });
+      })
+      .catch(() => {
+        if (!disposed)
+          setMcpStatus({ state: 'error', message: 'Could not load the Atlas MCP connection.' });
+      });
+    return () => {
+      disposed = true;
+      mcpConnection.current?.dispose();
+      mcpConnection.current = undefined;
+    };
   }, []);
   const [isAboutOpen, setIsAboutOpen] = React.useState(false);
 
@@ -47,12 +62,36 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<LandingPage onOpenAbout={() => setIsAboutOpen(true)} />} />
-        <Route path="/datasets" element={<DatasetsPage onOpenAbout={() => setIsAboutOpen(true)} />} />
-        <Route path="/build/:slug" element={<BuildScreen onOpenAbout={() => setIsAboutOpen(true)} />} />
-        <Route path="/impressum" element={<ImpressumPage onOpenAbout={() => setIsAboutOpen(true)} />} />
+        <Route
+          path="/datasets"
+          element={<DatasetsPage onOpenAbout={() => setIsAboutOpen(true)} />}
+        />
+        <Route
+          path="/build/:slug"
+          element={<BuildScreen onOpenAbout={() => setIsAboutOpen(true)} />}
+        />
+        <Route
+          path="/impressum"
+          element={<ImpressumPage onOpenAbout={() => setIsAboutOpen(true)} />}
+        />
         <Route path="/privacy" element={<PrivacyPage onOpenAbout={() => setIsAboutOpen(true)} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {mcpStatus && (
+        <div className="atlas-mcp-status" role="status" aria-live="polite">
+          <span>{mcpStatus.message}</span>
+          {['ready', 'disconnected', 'error'].includes(mcpStatus.state) && (
+            <button type="button" onClick={() => mcpConnection.current?.connect()}>
+              Connect MCP
+            </button>
+          )}
+          {['connected', 'connecting'].includes(mcpStatus.state) && (
+            <button type="button" onClick={() => mcpConnection.current?.disconnect()}>
+              Disconnect MCP
+            </button>
+          )}
+        </div>
+      )}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </>
   );

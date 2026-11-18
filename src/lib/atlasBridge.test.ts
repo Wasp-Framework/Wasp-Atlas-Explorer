@@ -109,3 +109,22 @@ it('rejects an expired command without changing the current dataset', async () =
   ).rejects.toThrow(/expired/);
   expect(navigate).not.toHaveBeenCalled();
 });
+
+it('does not replace the assembly if the MCP disconnects during catalog loading', async () => {
+  window.history.replaceState({}, '', '/?mcp=1');
+  const navigate = vi.fn();
+  cleanup.push(installAtlasBridge(navigate));
+  const controller = new AbortController();
+  const request = window.waspAtlas!.execute(
+    'open_dataset',
+    {
+      slug: 'demo',
+      expectedRevision: window.waspAtlas!.status().revision,
+    },
+    Infinity,
+    controller.signal
+  );
+  controller.abort();
+  await expect(request).rejects.toThrow(/closed before commit/);
+  expect(navigate).not.toHaveBeenCalled();
+});
